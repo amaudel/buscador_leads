@@ -8,9 +8,20 @@ test('flujo completo: buscar → guardar → analizar → borradores → leads �
   const errores: string[] = [];
   page.on('pageerror', (e) => errores.push(e.message));
 
-  await page.goto('/ajustes');
+  await page.goto('/buscar');
+  await expect(page.getByText(/Falta la clave de Gemini y Google Cloud/)).toBeVisible();
+  await page.getByRole('link', { name: 'Pégala en Ajustes' }).click();
+  await page.getByLabel('Clave de Gemini').fill('mala');
+  await page.getByRole('button', { name: 'Probar' }).first().click();
+  await expect(page.getByText(/API key not valid/)).toBeVisible();
+  await page.getByLabel('Clave de Gemini').fill('AIza-gemini-buena');
+  await page.getByRole('button', { name: 'Probar' }).first().click();
+  await expect(page.getByText('✓ Funciona. Modelo: gemini-2.5-flash')).toBeVisible();
+  await page.getByLabel(/Clave de Google Cloud/).fill('AIza-google-buena');
+  await page.getByRole('button', { name: 'Probar' }).nth(1).click();
+  await expect(page.getByText('✓ Funciona con Places API (New).')).toBeVisible();
   await page.getByPlaceholder('Tu nombre (y empresa, si tienes)').fill('Andrés Delgado');
-  await expect(page.getByText('gemini-2.5-flash')).toBeVisible();
+  await page.screenshot({ path: `${capturas}/0-ajustes.png`, fullPage: true });
 
   // Buscar
   await page.getByRole('link', { name: 'Buscar' }).click();
@@ -116,6 +127,7 @@ test('móvil: tarjetas y menú inferior', async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'es-419' });
   const page = await ctx.newPage();
   await simularApi(page);
+  await page.addInitScript(() => localStorage.setItem('radar-ajustes', JSON.stringify({ state: { claveGemini: 'a', claveGoogle: 'b' }, version: 1 })));
   await page.goto('/buscar');
   await page.getByPlaceholder(/Ciudad, barrio/).fill('Cuenca, Ecuador');
   await page.getByPlaceholder('p. ej. talleres mecánicos').fill('talleres mecánicos');

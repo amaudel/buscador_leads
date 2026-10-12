@@ -5,6 +5,7 @@ import type { PerfilVendedor } from '../../shared/tipos';
 
 export interface Ajustes {
   claveGoogle: string;
+  claveGemini: string;
   regionCode: string;
   perfil: PerfilVendedor;
   limiteMensual: number;
@@ -25,6 +26,7 @@ export const useAjustes = create<Ajustes & Acciones>()(
   persist(
     (set) => ({
       claveGoogle: '',
+      claveGemini: '',
       regionCode: 'ES',
       perfil: { nombre: '', queVendo: '', propuesta: '', tono: 'profesional' },
       limiteMensual: 1000,

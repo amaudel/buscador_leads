@@ -5,7 +5,8 @@ import { ErrorApi, comprobar } from './errores';
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MODELO_RESPALDO = 'gemini-flash-latest';
 
-let modeloEnCache: { nombre: string; hasta: number } | null = null;
+// Modelo elegido por clave (cada clave puede tener acceso a modelos distintos).
+const modelosEnCache = new Map<string, { nombre: string; hasta: number }>();
 
 /** Ordena nombres «gemini-X.Y-flash[-preview…]» de más nuevo a más antiguo (estable antes que preview). */
 export function elegirFlash(nombres: string[]): string | null {
@@ -22,9 +23,18 @@ export function elegirFlash(nombres: string[]): string | null {
   return candidatos[0]?.n ?? null;
 }
 
+/** Comprueba que la clave funciona; lanza el error real de la API si no. */
+export async function probarClave(clave: string): Promise<string> {
+  const res = await fetch(`${BASE}/models?pageSize=1000`, { headers: { 'x-goog-api-key': clave } });
+  const datos = (await comprobar(res, 'Gemini')) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
+  const nombres = (datos.models ?? []).filter((m) => m.supportedGenerationMethods?.includes('generateContent')).map((m) => m.name);
+  return elegirFlash(nombres) ?? MODELO_RESPALDO;
+}
+
 export async function resolverModelo(clave: string, forzado?: string | null): Promise<string> {
   if (forzado) return forzado;
-  if (modeloEnCache && modeloEnCache.hasta > Date.now()) return modeloEnCache.nombre;
+  const enCache = modelosEnCache.get(clave);
+  if (enCache && enCache.hasta > Date.now()) return enCache.nombre;
   try {
     const res = await fetch(`${BASE}/models?pageSize=1000`, { headers: { 'x-goog-api-key': clave } });
     const datos = (await comprobar(res, 'Gemini')) as {
@@ -34,7 +44,7 @@ export async function resolverModelo(clave: string, forzado?: string | null): Pr
       .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
       .map((m) => m.name);
     const nombre = elegirFlash(nombres) ?? MODELO_RESPALDO;
-    modeloEnCache = { nombre, hasta: Date.now() + 6 * 3600_000 };
+    modelosEnCache.set(clave, { nombre, hasta: Date.now() + 6 * 3600_000 });
     return nombre;
   } catch {
     return MODELO_RESPALDO;

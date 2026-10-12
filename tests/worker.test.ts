@@ -136,10 +136,35 @@ describe('Gemini', () => {
     expect(f).toHaveBeenCalledTimes(1);
   });
 
-  it('error claro si falta GEMINI_API_KEY', async () => {
+  it('error claro si no hay clave de Gemini', async () => {
     const res = await worker.fetch(post('/api/gemini/nichos', { zona: 'x', metricas: [], perfil: {} }), env({ GEMINI_API_KEY: undefined }));
-    expect(res.status).toBe(500);
-    expect(((await res.json()) as { error: { mensaje: string } }).error.mensaje).toMatch(/GEMINI_API_KEY/);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: { mensaje: string } }).error.mensaje).toMatch(/Pégala en Ajustes/);
+  });
+
+  it('la clave pegada en Ajustes tiene prioridad sobre el secreto', async () => {
+    const f = vi.fn(async () => gen('{"llamada":"a","whatsapp":"b","correo":{"asunto":"c","cuerpo":"d"}}'));
+    vi.stubGlobal('fetch', f);
+    const res = await worker.fetch(post('/api/gemini/borradores', { negocio, analisis: null, sinWebPropia: true, perfil: {}, tono: 'x' }, { 'x-gemini-key': 'nav-gemini', 'x-gemini-model': 'm' }), env());
+    expect(res.status).toBe(200);
+    expect(((f.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Record<string, string>)['x-goog-api-key']).toBe('nav-gemini');
+  });
+
+  it('probar clave de Gemini devuelve el error real', async () => {
+    vi.stubGlobal('fetch', async () => respuesta({ error: { code: 400, message: 'API key not valid. Please pass a valid API key.' } }, 400));
+    const res = await worker.fetch(post('/api/probar', { servicio: 'gemini' }, { 'x-gemini-key': 'mala' }), env({ GEMINI_API_KEY: undefined }));
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: { mensaje: string } }).error.mensaje).toMatch(/API key not valid/);
+  });
+});
+
+describe('probar Google', () => {
+  it('usa Text Search con solo places.id (sin coste)', async () => {
+    const f = vi.fn(async () => respuesta({ places: [{ id: 'x' }] }));
+    vi.stubGlobal('fetch', f);
+    const res = await worker.fetch(post('/api/probar', { servicio: 'google' }, { 'x-google-key': 'k' }), env({ GOOGLE_CLOUD_API_KEY: undefined }));
+    expect(res.status).toBe(200);
+    expect(((f.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Record<string, string>)['x-goog-fieldmask']).toBe('places.id');
   });
 });
 

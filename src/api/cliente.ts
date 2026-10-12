@@ -19,6 +19,7 @@ async function llamar<T>(metodo: 'GET' | 'POST', ruta: string, cuerpo?: unknown)
   const a = useAjustes.getState();
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (a.claveGoogle) headers['x-google-key'] = a.claveGoogle;
+  if (a.claveGemini) headers['x-gemini-key'] = a.claveGemini;
   if (a.modeloGemini) headers['x-gemini-model'] = a.modeloGemini;
   let res: Response;
   try {
@@ -43,7 +44,10 @@ async function llamar<T>(metodo: 'GET' | 'POST', ruta: string, cuerpo?: unknown)
 export type GeminiConMeta = AnalisisGemini & { modelo: string; modo: string; avisos: string[] };
 
 export const api = {
-  estado: () => llamar<{ gemini: boolean; google: boolean; modeloGemini: string | null }>('GET', '/api/estado'),
+  estado: () =>
+    llamar<{ gemini: boolean; google: boolean; secretos: { gemini: boolean; google: boolean }; modeloGemini: string | null }>('GET', '/api/estado'),
+
+  probar: (servicio: 'gemini' | 'google') => llamar<{ ok: boolean; detalle: string }>('POST', '/api/probar', { servicio }),
 
   buscar: (textQuery: string, regionCode: string, pageToken?: string | null) => {
     useAjustes.getState().sumarLlamadaPlaces();

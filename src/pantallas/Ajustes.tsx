@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { TONOS } from '../../shared/tipos';
 import { api, mensajeError } from '../api/cliente';
-import { Cargando, ErrorCaja } from '../componentes/ui';
+import { ErrorCaja } from '../componentes/ui';
 import { repo } from '../datos';
 import { useAjustes, usoDelMes } from '../datos/ajustes';
 
@@ -13,14 +13,13 @@ const REGIONES = [
 
 export function Ajustes() {
   const a = useAjustes();
-  const [estado, setEstado] = useState<{ gemini: boolean; google: boolean; modeloGemini: string | null } | null>(null);
+  const [estado, setEstado] = useState<Awaited<ReturnType<typeof api.estado>> | null>(null);
   const [errorEstado, setErrorEstado] = useState<string | null>(null);
-  const [verClave, setVerClave] = useState(false);
   const uso = usoDelMes(a);
 
   useEffect(() => {
     api.estado().then(setEstado).catch((e) => setErrorEstado(mensajeError(e)));
-  }, [a.modeloGemini]);
+  }, [a.modeloGemini, a.claveGemini, a.claveGoogle]);
 
   return (
     <div className="pila" style={{ maxWidth: 860 }}>
@@ -35,38 +34,27 @@ export function Ajustes() {
         <div className="panel-cab"><h2>Claves y servicios</h2></div>
         <div className="panel-cuerpo pila">
           {errorEstado && <ErrorCaja titulo="No se pudo consultar el servidor" mensaje={errorEstado} />}
-          {!estado && !errorEstado && <Cargando texto="Comprobando secretos del entorno…" />}
-          {estado && (
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-              <li>
-                Gemini: {estado.gemini ? <span className="etiqueta verde">Configurado en el entorno</span> : <span className="etiqueta rojo">Falta GEMINI_API_KEY</span>}
-                {estado.modeloGemini && <span className="tenue"> · modelo: <code>{estado.modeloGemini}</code></span>}
-              </li>
-              <li>
-                Places y PageSpeed (Google Cloud):{' '}
-                {estado.google ? <span className="etiqueta verde">Configurado como secreto del entorno</span> : a.claveGoogle ? <span className="etiqueta ambar">Usando la clave de este navegador</span> : <span className="etiqueta rojo">Falta la clave</span>}
-              </li>
-            </ul>
-          )}
-          {estado && !estado.google && (
-            <label className="campo">
-              Clave de Google Cloud (Places API New + PageSpeed Insights)
-              <span className="fila">
-                <input
-                  type={verClave ? 'text' : 'password'}
-                  value={a.claveGoogle}
-                  onChange={(e) => a.cambiar({ claveGoogle: e.target.value.trim() })}
-                  placeholder="AIza…"
-                  autoComplete="off"
-                  style={{ flex: 1 }}
-                />
-                <button type="button" onClick={() => setVerClave(!verClave)}>{verClave ? 'Ocultar' : 'Mostrar'}</button>
-              </span>
-              <small style={{ fontWeight: 400 }}>
-                Lo ideal es guardarla como secreto: <code>npx wrangler secret put GOOGLE_CLOUD_API_KEY</code>. Mientras tanto se guarda solo
-                en este navegador y se envía a tu propio Worker en cada llamada.
-              </small>
-            </label>
+          <CampoClave
+            titulo="Clave de Gemini"
+            ayuda="Sácala gratis en aistudio.google.com → «Get API key»."
+            valor={a.claveGemini}
+            alCambiar={(v) => a.cambiar({ claveGemini: v })}
+            servicio="gemini"
+            hayRespaldo={estado?.secretos.gemini ?? false}
+          />
+          <CampoClave
+            titulo="Clave de Google Cloud (Places API New y PageSpeed Insights)"
+            ayuda="En console.cloud.google.com activa «Places API (New)» y «PageSpeed Insights API», crea una clave y restríngela a esas dos APIs. Probarla no gasta del cupo."
+            valor={a.claveGoogle}
+            alCambiar={(v) => a.cambiar({ claveGoogle: v })}
+            servicio="google"
+            hayRespaldo={estado?.secretos.google ?? false}
+          />
+          <small>
+            Las claves se guardan solo en este navegador. Si usas la app en otro dispositivo, tendrás que pegarlas allí también.
+          </small>
+          {estado?.modeloGemini && (
+            <small>Modelo de Gemini en uso: <code>{estado.modeloGemini}</code></small>
           )}
           <label className="campo">
             Modelo de Gemini
@@ -152,6 +140,67 @@ export function Ajustes() {
           </button>
         </div>
       </section>
+    </div>
+  );
+}
+
+function CampoClave(p: {
+  titulo: string;
+  ayuda: string;
+  valor: string;
+  alCambiar: (v: string) => void;
+  servicio: 'gemini' | 'google';
+  hayRespaldo: boolean;
+}) {
+  const [ver, setVer] = useState(false);
+  const [prueba, setPrueba] = useState<{ estado: 'probando' | 'ok' | 'error'; texto: string } | null>(null);
+  const usable = Boolean(p.valor) || p.hayRespaldo;
+
+  const probar = async () => {
+    setPrueba({ estado: 'probando', texto: 'Probando…' });
+    try {
+      const r = await api.probar(p.servicio);
+      setPrueba({ estado: 'ok', texto: r.detalle });
+    } catch (e) {
+      setPrueba({ estado: 'error', texto: mensajeError(e) });
+    }
+  };
+
+  return (
+    <div className="campo" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--texto-2)' }}>
+      <span className="fila entre">
+        {p.titulo}
+        {p.valor ? (
+          <span className="etiqueta verde">Pegada en este navegador</span>
+        ) : p.hayRespaldo ? (
+          <span className="etiqueta acento">Usando la del servidor</span>
+        ) : (
+          <span className="etiqueta rojo">Falta la clave</span>
+        )}
+      </span>
+      <span className="fila">
+        <input
+          type={ver ? 'text' : 'password'}
+          value={p.valor}
+          onChange={(e) => {
+            p.alCambiar(e.target.value.trim());
+            setPrueba(null);
+          }}
+          placeholder="Pega aquí tu clave (AIza…)"
+          autoComplete="off"
+          spellCheck={false}
+          aria-label={p.titulo}
+          style={{ flex: '1 1 260px' }}
+        />
+        <button type="button" onClick={() => setVer(!ver)}>{ver ? 'Ocultar' : 'Mostrar'}</button>
+        <button type="button" onClick={probar} disabled={!usable || prueba?.estado === 'probando'}>
+          {prueba?.estado === 'probando' ? <span className="girando" /> : null} Probar
+        </button>
+        {p.valor && <button type="button" className="fantasma peligro" onClick={() => p.alCambiar('')}>Borrar</button>}
+      </span>
+      {prueba?.estado === 'ok' && <span className="c-verde">✓ {prueba.texto}</span>}
+      {prueba?.estado === 'error' && <span className="c-rojo" style={{ overflowWrap: 'anywhere' }}>✕ {prueba.texto}</span>}
+      <small style={{ fontWeight: 400 }}>{p.ayuda}</small>
     </div>
   );
 }

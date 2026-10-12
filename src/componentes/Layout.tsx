@@ -1,4 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { api } from '../api/cliente';
 import { useAjustes, usoDelMes } from '../datos/ajustes';
 import { ColaPanel } from './ColaPanel';
 import { Icono } from './ui';
@@ -14,6 +16,14 @@ export function Layout() {
   const a = useAjustes();
   const uso = usoDelMes(a);
   const pct = Math.min(100, (uso / a.limiteMensual) * 100);
+  const ruta = useLocation().pathname;
+  const [faltan, setFaltan] = useState<string[]>([]);
+  useEffect(() => {
+    api
+      .estado()
+      .then((e) => setFaltan([!e.gemini && 'Gemini', !e.google && 'Google Cloud'].filter(Boolean) as string[]))
+      .catch(() => setFaltan([]));
+  }, [a.claveGemini, a.claveGoogle]);
   return (
     <div className="app">
       <nav className="menu" aria-label="Principal">
@@ -34,6 +44,11 @@ export function Layout() {
         </div>
       </nav>
       <main className="principal">
+        {faltan.length > 0 && ruta !== '/ajustes' && (
+          <div className="aviso-caja" style={{ marginBottom: 12 }}>
+            Falta la clave de {faltan.join(' y ')}. <Link to="/ajustes">Pégala en Ajustes</Link> para poder buscar y analizar.
+          </div>
+        )}
         {uso >= a.umbralAviso && (
           <div className="aviso-caja" style={{ marginBottom: 12 }}>
             Llevas {uso} llamadas a Places este mes (aviso a partir de {a.umbralAviso}, límite {a.limiteMensual}). Las

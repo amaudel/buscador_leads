@@ -35,7 +35,17 @@ const captura =
   ).toString('base64');
 
 export async function simularApi(page: Page) {
-  await page.route('**/api/estado', (r) => r.fulfill({ json: { gemini: true, google: true, modeloGemini: 'gemini-2.5-flash' } }));
+  await page.route('**/api/estado', (r) => {
+    const h = r.request().headers();
+    r.fulfill({ json: { gemini: Boolean(h['x-gemini-key']), google: Boolean(h['x-google-key']), secretos: { gemini: false, google: false }, modeloGemini: h['x-gemini-key'] ? 'gemini-2.5-flash' : null } });
+  });
+  await page.route('**/api/probar', (r) => {
+    const { servicio } = r.request().postDataJSON();
+    const h = r.request().headers();
+    const clave = servicio === 'gemini' ? h['x-gemini-key'] : h['x-google-key'];
+    if (clave === 'mala') return r.fulfill({ status: 400, json: { error: { origen: 'Gemini', estado: 400, mensaje: 'API key not valid. Please pass a valid API key.' } } });
+    r.fulfill({ json: { ok: true, detalle: servicio === 'gemini' ? 'Funciona. Modelo: gemini-2.5-flash' : 'Funciona con Places API (New).' } });
+  });
   await page.route('**/api/places/search', async (r) => {
     const b = r.request().postDataJSON();
     await new Promise((x) => setTimeout(x, 300));

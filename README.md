@@ -9,7 +9,9 @@ Herramienta de prospección para vender servicios digitales (webs, agentes de IA
 - descubrir qué nichos tienen más oportunidad;
 - llevar el seguimiento de tus leads.
 
-**Stack:** Vite + React + TypeScript en un Cloudflare Worker con *static assets*. El Worker sirve la SPA y hace de proxy en `/api/*`, así que las claves nunca llegan al navegador.
+**Stack:** Vite + React + TypeScript en un Cloudflare Worker con *static assets*. El Worker sirve la SPA y hace de proxy en `/api/*`.
+
+**Claves:** se pegan en **Ajustes** (Gemini y Google Cloud), cada una con un botón «Probar». Se guardan solo en ese navegador y se envían a tu propio Worker en cada llamada. Si además hay secretos en Cloudflare, se usan como respaldo; la clave pegada tiene prioridad.
 
 ## Pantallas
 
@@ -19,7 +21,7 @@ Herramienta de prospección para vender servicios digitales (webs, agentes de IA
 | **Ficha** (`/negocio/:id`) | Contacto y análisis: 4 notas de PageSpeed en móvil, captura, resumen, lista de comprobación, correos, redes, problemas y servicio recomendado. También genera los borradores (llamada, WhatsApp y correo) y guarda notas, estado y próxima acción. «Exportar ficha» abre la versión imprimible / PDF. |
 | **Radar de nichos** | Mide una zona por categorías (editables). Avisa de las llamadas a Places que va a gastar y pide confirmación. Gemini ordena las categorías y recomienda el top 3. |
 | **Mis leads** | Tabla y tablero por estados (arrastrar y soltar), filtros, búsqueda y exportación a CSV (compatible con Excel). |
-| **Ajustes** | Clave de Google (si no está como secreto), región, perfil de vendedor, contador mensual de Places con aviso, modelo de Gemini. |
+| **Ajustes** | Claves de Gemini y Google Cloud (pegar y probar), región, perfil de vendedor, contador mensual de Places con aviso, modelo de Gemini. |
 
 ## APIs
 
@@ -48,8 +50,7 @@ La app accede a los datos solo a través de la interfaz `Repositorio` (`src/dato
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars   # pon GEMINI_API_KEY y GOOGLE_CLOUD_API_KEY
-npm run dev                      # http://localhost:5173 (Worker incluido)
+npm run dev                      # http://localhost:5173 (Worker incluido); pega las claves en Ajustes
 npm test                         # pruebas unitarias (lógica + Worker con fetch simulado)
 npx playwright test              # recorrido completo con APIs simuladas
 ```
@@ -58,12 +59,12 @@ npx playwright test              # recorrido completo con APIs simuladas
 
 ```bash
 npx wrangler login
-npx wrangler secret put GEMINI_API_KEY
-npx wrangler secret put GOOGLE_CLOUD_API_KEY   # opcional: si no, se pide en Ajustes
 npm run deploy
 ```
 
-En Google Cloud tienen que estar habilitadas **Places API (New)** y **PageSpeed Insights API** para esa clave.
+Después abre la app, ve a **Ajustes**, pega tus claves y pulsa «Probar». En Google Cloud tienen que estar habilitadas **Places API (New)** y **PageSpeed Insights API** para esa clave (mejor restringida a esas dos APIs). Probar la clave de Google no gasta del cupo: usa Text Search pidiendo solo `places.id`.
+
+Opcional: `npx wrangler secret put GEMINI_API_KEY` / `GOOGLE_CLOUD_API_KEY` como respaldo para cuando no haya clave pegada. Si los usas, protege la app con Cloudflare Access para que nadie más gaste esas claves.
 
 ## Puntuación de oportunidad (0–100)
 

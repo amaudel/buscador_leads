@@ -3,7 +3,7 @@ import { esquemaAnalisisSinWeb, esquemaAnalisisWeb, esquemaBorradores, esquemaNi
 import { PLACES_FIELD_MASK, mapearPlace } from '../shared/places';
 import type { MetricaNicho, NegocioPlaces, PerfilVendedor, RespuestaPlaces, ResultadoPageSpeed } from '../shared/tipos';
 import { ErrorApi, comprobar } from './errores';
-import { generar, generarConUrl, parsearJson, resolverModelo } from './gemini';
+import { generar, generarConUrl, parsearJson, probarClave, resolverModelo } from './gemini';
 import * as P from './prompts';
 
 export interface Env {
@@ -18,15 +18,17 @@ const json = (datos: unknown, estado = 200) =>
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
   });
 
+// La clave pegada en Ajustes (cabecera) tiene prioridad; el secreto del entorno es el respaldo.
 function claveGoogle(req: Request, env: Env): string {
-  const k = env.GOOGLE_CLOUD_API_KEY || req.headers.get('x-google-key');
-  if (!k) throw new ErrorApi('Configuración', 400, 'Falta la clave de Google Cloud. Configúrala como secreto del entorno o en Ajustes.');
+  const k = req.headers.get('x-google-key') || env.GOOGLE_CLOUD_API_KEY;
+  if (!k) throw new ErrorApi('Configuración', 400, 'Falta la clave de Google Cloud. Pégala en Ajustes.');
   return k;
 }
 
-function claveGemini(env: Env): string {
-  if (!env.GEMINI_API_KEY) throw new ErrorApi('Configuración', 500, 'Falta el secreto GEMINI_API_KEY en el entorno del Worker.');
-  return env.GEMINI_API_KEY;
+function claveGemini(req: Request, env: Env): string {
+  const k = req.headers.get('x-gemini-key') || env.GEMINI_API_KEY;
+  if (!k) throw new ErrorApi('Configuración', 400, 'Falta la clave de Gemini. Pégala en Ajustes.');
+  return k;
 }
 
 async function leerCuerpo<T>(req: Request): Promise<T> {
@@ -112,7 +114,7 @@ async function pagespeed(req: Request, env: Env): Promise<ResultadoPageSpeed> {
 
 // ---------- Gemini ----------
 async function modelo(req: Request, env: Env) {
-  const clave = claveGemini(env);
+  const clave = claveGemini(req, env);
   return { clave, modelo: await resolverModelo(clave, req.headers.get('x-gemini-model')) };
 }
 
@@ -175,13 +177,38 @@ async function nichos(req: Request, env: Env) {
 }
 
 async function estado(req: Request, env: Env) {
-  let modeloGemini: string | null = null;
-  if (env.GEMINI_API_KEY) modeloGemini = await resolverModelo(env.GEMINI_API_KEY, req.headers.get('x-gemini-model'));
-  return { gemini: Boolean(env.GEMINI_API_KEY), google: Boolean(env.GOOGLE_CLOUD_API_KEY), modeloGemini };
+  const gemini = req.headers.get('x-gemini-key') || env.GEMINI_API_KEY;
+  const modeloGemini = gemini ? await resolverModelo(gemini, req.headers.get('x-gemini-model')) : null;
+  return {
+    gemini: Boolean(gemini),
+    google: Boolean(req.headers.get('x-google-key') || env.GOOGLE_CLOUD_API_KEY),
+    secretos: { gemini: Boolean(env.GEMINI_API_KEY), google: Boolean(env.GOOGLE_CLOUD_API_KEY) },
+    modeloGemini,
+  };
+}
+
+/**
+ * Prueba una clave. Para Google usa Text Search pidiendo solo places.id
+ * (SKU «IDs Only», sin coste), así que no gasta del cupo de 1.000.
+ */
+async function probar(req: Request, env: Env) {
+  const { servicio } = await leerCuerpo<{ servicio?: string }>(req);
+  if (servicio === 'gemini') return { ok: true, detalle: `Funciona. Modelo: ${await probarClave(claveGemini(req, env))}` };
+  if (servicio === 'google') {
+    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': claveGoogle(req, env), 'x-goog-fieldmask': 'places.id' },
+      body: JSON.stringify({ textQuery: 'farmacia', pageSize: 1 }),
+    });
+    await comprobar(res, 'Places');
+    return { ok: true, detalle: 'Funciona con Places API (New).' };
+  }
+  throw new ErrorApi('Petición', 400, 'Servicio desconocido.');
 }
 
 const RUTAS: Record<string, (req: Request, env: Env) => Promise<unknown>> = {
   'GET /api/estado': estado,
+  'POST /api/probar': probar,
   'POST /api/places/search': buscarPlaces,
   'POST /api/pagespeed': pagespeed,
   'POST /api/gemini/analizar-web': analizarWeb,
