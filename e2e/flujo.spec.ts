@@ -36,6 +36,16 @@ test('flujo completo: buscar → guardar → analizar → borradores → leads �
   await expect(page.getByText('8 negocios')).toBeVisible();
   await page.screenshot({ path: `${capturas}/1-buscar.png`, fullPage: true });
 
+  // Exportar a Excel y PDF
+  for (const [boton, firma] of [['Excel', 'PK'], ['PDF', '%PDF']] as const) {
+    const [d] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: boton, exact: true }).click()]);
+    expect(d.suggestedFilename()).toMatch(/^negocios-talleres-mecanicos-cuenca-ecuador-/);
+    const ruta = `${capturas}/${d.suggestedFilename()}`;
+    await d.saveAs(ruta);
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync(ruta).subarray(0, firma.length).toString()).toBe(firma);
+  }
+
   // Desglose de la oportunidad
   await page.locator('tbody tr').first().locator('button.nota').click();
   await expect(page.getByText(/¿Por qué \d+\?/)).toBeVisible();

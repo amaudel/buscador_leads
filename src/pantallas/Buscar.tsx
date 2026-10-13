@@ -104,6 +104,19 @@ export function Buscar() {
   }, [todas, s.filtros, s.orden]);
 
   const vista = movil ? 'tarjetas' : s.vista;
+  const [exportando, setExportando] = useState<'excel' | 'pdf' | null>(null);
+  const exportar = async (formato: 'excel' | 'pdf') => {
+    if (!s.cache) return;
+    setExportando(formato);
+    try {
+      const { exportarExcel, exportarPdf } = await import('../logica/exportar');
+      await (formato === 'excel' ? exportarExcel : exportarPdf)(filas, s.cache.nicho, s.cache.zona);
+    } catch (e) {
+      s.set({ error: `No se pudo exportar: ${mensajeError(e)}` });
+    } finally {
+      setExportando(null);
+    }
+  };
   const seleccionados = todas.filter((f) => s.seleccion.includes(f.n.id)).map((f) => f.n);
   const sinWeb = todas.filter((f) => f.n.tipoWeb !== 'propia').length;
   const conTelefono = todas.filter((f) => f.n.telNacional || f.n.telInternacional).length;
@@ -228,6 +241,12 @@ export function Buscar() {
                   Actualizar (1 llamada)
                 </button>
               )}
+              <button className="pequeno" onClick={() => exportar('excel')} disabled={!filas.length || !!exportando} title="Descarga un Excel con todos los datos de los negocios que se ven en la lista">
+                {exportando === 'excel' ? <span className="girando" /> : <Icono nombre="descargar" tam={14} />} Excel
+              </button>
+              <button className="pequeno" onClick={() => exportar('pdf')} disabled={!filas.length || !!exportando} title="Descarga un PDF con el listado de los negocios que se ven en la lista">
+                {exportando === 'pdf' ? <span className="girando" /> : <Icono nombre="descargar" tam={14} />} PDF
+              </button>
               <select value={s.orden} onChange={(e) => s.set({ orden: e.target.value as Orden })} aria-label="Ordenar por">
                 <option value="oportunidad">Mayor oportunidad</option>
                 <option value="google">Orden de Google</option>

@@ -107,3 +107,17 @@ describe('csv y claves', () => {
     expect(m).toEqual({ categoria: 'talleres', total: 2, pctSinWeb: 50, mediaValoracion: 4.3, mediaResenas: 50 });
   });
 });
+
+describe('exportar', () => {
+  it('genera cabecera y una fila por negocio con todos los datos', async () => {
+    const { tablaExportable, nombreArchivo } = await import('../src/logica/exportar');
+    const t = tablaExportable([{ n: negocio({ web: 'https://facebook.com/x', tipoWeb: 'red_social' }) }]);
+    expect(t).toHaveLength(2);
+    const fila = Object.fromEntries((t[0] as string[]).map((c, i) => [c, t[1][i]]));
+    expect(fila).toMatchObject({
+      Nombre: 'Taller Pérez', Teléfono: '07 123 4567', 'Tipo de web': 'Sin web propia', Reseñas: 80,
+      WhatsApp: 'https://wa.me/59371234567', 'Estado del lead': 'No guardado', Oportunidad: 90,
+    });
+    expect(nombreArchivo('Clínicas dentales', 'Cuenca, Ecuador', 'xlsx')).toMatch(/^negocios-clinicas-dentales-cuenca-ecuador-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  });
+});
