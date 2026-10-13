@@ -10,18 +10,24 @@ const TEXTO: Record<Fase, string> = {
 };
 
 export function ColaPanel() {
-  const { items, orden, limpiar } = useCola();
+  const { items, orden, limpiar, reintentarFallidos } = useCola();
   if (!orden.length) return null;
   const lista = orden.map((id) => items[id]);
   const terminados = lista.filter((i) => i.fase === 'hecho' || i.fase === 'error').length;
   const activos = lista.length - terminados;
+  const fallidos = lista.filter((i) => i.fase === 'error').length;
   return (
     <aside className="cola no-imprimir" aria-live="polite">
       <div className="cab pila" style={{ gap: 6 }}>
         <div className="fila entre">
           <strong>{activos ? `Analizando ${Math.min(terminados + 1, lista.length)} de ${lista.length}…` : `Análisis terminado (${lista.length})`}</strong>
           {!activos && (
-            <button className="pequeno fantasma" onClick={limpiar}>Cerrar</button>
+            <span className="fila" style={{ gap: 4 }}>
+              {fallidos > 0 && (
+                <button className="pequeno primario" onClick={reintentarFallidos}>Reintentar {fallidos}</button>
+              )}
+              <button className="pequeno fantasma" onClick={limpiar}>Cerrar</button>
+            </span>
           )}
         </div>
         <div className="barra"><span style={{ width: `${(terminados / lista.length) * 100}%` }} /></div>

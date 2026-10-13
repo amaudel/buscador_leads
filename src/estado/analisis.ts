@@ -19,11 +19,13 @@ interface EstadoCola {
   items: Record<string, ItemCola>;
   orden: string[];
   analizar: (negocios: Negocio[]) => void;
+  reintentarFallidos: () => void;
   limpiar: () => void;
 }
 
 let enCurso = 0;
 const pendientes: Negocio[] = [];
+const negociosPorId = new Map<string, Negocio>();
 
 export const useCola = create<EstadoCola>((set, get) => {
   const fase = (id: string, f: Fase, error?: string) =>
@@ -54,8 +56,17 @@ export const useCola = create<EstadoCola>((set, get) => {
         items: { ...s.items, ...Object.fromEntries(nuevos.map((n) => [n.id, { id: n.id, nombre: n.nombre, fase: 'en_cola' as Fase }])) },
         orden: [...s.orden.filter((id) => !nuevos.some((n) => n.id === id)), ...nuevos.map((n) => n.id)],
       }));
+      nuevos.forEach((n) => negociosPorId.set(n.id, n));
       pendientes.push(...nuevos);
       bombear();
+    },
+    reintentarFallidos: () => {
+      const s = get();
+      const fallidos = s.orden
+        .filter((id) => s.items[id].fase === 'error')
+        .map((id) => negociosPorId.get(id))
+        .filter((n): n is Negocio => Boolean(n));
+      get().analizar(fallidos);
     },
     limpiar: () =>
       set((s) => {

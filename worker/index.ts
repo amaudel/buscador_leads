@@ -129,7 +129,7 @@ async function analizarWeb(req: Request, env: Env) {
     promptLectura: P.promptLecturaWeb(negocio),
     promptEstructurar: (lectura) => P.promptEstructurarAnalisis(negocio, ps, lectura),
   });
-  return { ...r.datos, problemas: r.datos.problemas.slice(0, 5), modelo: m.modelo, modo: r.modo, avisos: r.avisos };
+  return { ...r.datos, problemas: r.datos.problemas.slice(0, 5), modelo: r.modelo, modo: r.modo, avisos: r.avisos };
 }
 
 async function analizarSinWeb(req: Request, env: Env) {
@@ -143,9 +143,9 @@ async function analizarSinWeb(req: Request, env: Env) {
     checklist: null,
     correos: [],
     redes: [],
-    modelo: m.modelo,
+    modelo: r.modelo,
     modo: 'sin web (solo datos de Places)',
-    avisos: [],
+    avisos: r.avisos,
   };
 }
 
@@ -164,7 +164,7 @@ async function borradores(req: Request, env: Env) {
     esquema: esquemaBorradores,
     temperatura: 0.8,
   });
-  return { ...parsearJson(r.texto, esquemaBorradores), modelo: m.modelo };
+  return { ...parsearJson(r.texto, esquemaBorradores), modelo: r.modelo };
 }
 
 async function nichos(req: Request, env: Env) {
@@ -173,7 +173,7 @@ async function nichos(req: Request, env: Env) {
   const r = await generar({ ...m, prompt: P.promptNichos(b.zona, b.metricas, b.perfil), esquema: esquemaNichos });
   const d = parsearJson(r.texto, esquemaNichos);
   d.ranking.sort((a, c) => c.puntuacion - a.puntuacion);
-  return { ...d, modelo: m.modelo };
+  return { ...d, modelo: r.modelo };
 }
 
 async function estado(req: Request, env: Env) {

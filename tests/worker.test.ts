@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PLACES_FIELD_MASK } from '../shared/places';
-import { elegirFlash } from '../worker/gemini';
+import { _sinEsperas, elegirFlash } from '../worker/gemini';
 import worker, { mapearPageSpeed, type Env } from '../worker/index';
 
 const env = (p: Partial<Env> = {}): Env => ({
@@ -15,6 +15,7 @@ const post = (ruta: string, cuerpo: unknown, headers: Record<string, string> = {
 
 const respuesta = (datos: unknown, status = 200) => new Response(JSON.stringify(datos), { status, headers: { 'content-type': 'application/json' } });
 
+beforeEach(() => _sinEsperas());
 afterEach(() => vi.unstubAllGlobals());
 
 describe('elegirFlash', () => {
@@ -134,6 +135,27 @@ describe('Gemini', () => {
     const res = await worker.fetch(post('/api/gemini/analizar-web', { negocio, pagespeed: null }, { 'x-gemini-model': 'm' }), env());
     expect(res.status).toBe(403);
     expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it('si el modelo está saturado reintenta y luego usa un modelo de respaldo', async () => {
+    const saturado = () => respuesta({ error: { code: 503, message: 'This model is currently experiencing high demand.' } }, 503);
+    const f = vi.fn(async (url: string) =>
+      url.includes('/models/gemini-3-flash-preview:') ? saturado() : gen('{"llamada":"a","whatsapp":"b","correo":{"asunto":"c","cuerpo":"d"}}'),
+    );
+    vi.stubGlobal('fetch', f);
+    const res = await worker.fetch(post('/api/gemini/borradores', { negocio, analisis: null, sinWebPropia: true, perfil: {}, tono: 'x' }, { 'x-gemini-model': 'gemini-3-flash-preview' }), env());
+    const d = (await res.json()) as { modelo: string };
+    expect(res.status).toBe(200);
+    expect(d.modelo).toBe('gemini-flash-latest');
+    // 3 intentos con el saturado (1 + 2 reintentos) y 1 con el respaldo
+    expect(f).toHaveBeenCalledTimes(4);
+  });
+
+  it('mensaje claro si todos los modelos están saturados', async () => {
+    vi.stubGlobal('fetch', async () => respuesta({ error: { code: 503, message: 'high demand' } }, 503));
+    const res = await worker.fetch(post('/api/gemini/borradores', { negocio, analisis: null, sinWebPropia: true, perfil: {}, tono: 'x' }, { 'x-gemini-model': 'm' }), env());
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { error: { mensaje: string } }).error.mensaje).toMatch(/saturado/);
   });
 
   it('error claro si no hay clave de Gemini', async () => {

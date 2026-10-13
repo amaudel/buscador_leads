@@ -63,9 +63,61 @@ interface Opciones {
 interface Salida {
   texto: string;
   avisos: string[];
+  modelo: string;
 }
 
+// Modelos de respaldo si el elegido está saturado (503) o sin cupo (429).
+export const RESPALDOS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest'];
+const SATURADOS = new Map<string, number>(); // modelo -> hasta cuándo evitarlo
+const ESPERAS_MS = [1200, 3000];
+let esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Solo para pruebas: evita esperas reales. */
+export function _sinEsperas() {
+  esperar = async () => {};
+  SATURADOS.clear();
+}
+
+const esSaturacion = (e: unknown) => e instanceof ErrorApi && [500, 503, 504].includes(e.estado);
+
+/**
+ * Llama a Gemini con reintentos: si el modelo está saturado reintenta dos veces
+ * con espera y luego prueba con los modelos de respaldo.
+ */
 export async function generar(o: Opciones): Promise<Salida> {
+  const candidatos = [o.modelo, ...RESPALDOS.filter((m) => m !== o.modelo)];
+  const disponibles = candidatos.filter((m) => (SATURADOS.get(m) ?? 0) < Date.now());
+  const orden = disponibles.length ? disponibles : candidatos;
+  let ultimo: unknown = null;
+  for (const modelo of orden) {
+    for (let intento = 0; intento <= ESPERAS_MS.length; intento++) {
+      try {
+        const r = await generarUnModelo({ ...o, modelo });
+        const avisos = modelo === o.modelo ? r.avisos : [`${o.modelo} estaba saturado; se usó ${modelo}.`, ...r.avisos];
+        return { ...r, avisos, modelo };
+      } catch (e) {
+        ultimo = e;
+        if (esSaturacion(e) && intento < ESPERAS_MS.length) {
+          await esperar(ESPERAS_MS[intento]);
+          continue;
+        }
+        break;
+      }
+    }
+    const e = ultimo;
+    // Saturado, sin cupo para ese modelo o modelo inexistente: se prueba el siguiente.
+    if (esSaturacion(e) || (e instanceof ErrorApi && [404, 429].includes(e.estado))) {
+      if (esSaturacion(e)) SATURADOS.set(modelo, Date.now() + 5 * 60_000);
+      continue;
+    }
+    throw e;
+  }
+  if (esSaturacion(ultimo)) {
+    throw new ErrorApi('Gemini', 503, 'Gemini está saturado ahora mismo (todos los modelos Flash). Espera un par de minutos y vuelve a intentarlo.');
+  }
+  throw ultimo;
+}
+
+async function generarUnModelo(o: Opciones): Promise<Omit<Salida, 'modelo'>> {
   const generationConfig: Record<string, unknown> = { temperature: o.temperatura ?? 0.4 };
   if (o.esquema) {
     generationConfig.responseMimeType = 'application/json';
@@ -143,21 +195,22 @@ export async function generarConUrl<T>(o: {
   promptLectura: string;
   promptEstructurar: (lectura: string) => string;
   esquema: z.ZodType<T>;
-}): Promise<{ datos: T; modo: string; avisos: string[] }> {
+}): Promise<{ datos: T; modo: string; avisos: string[]; modelo: string }> {
   let motivo = '';
   try {
     const r = await generar({ clave: o.clave, modelo: o.modelo, prompt: o.promptUnico, urlContext: true, esquema: o.esquema });
-    return { datos: parsearJson(r.texto, o.esquema), modo: 'una llamada (URL context + JSON)', avisos: r.avisos };
+    return { datos: parsearJson(r.texto, o.esquema), modo: 'una llamada (URL context + JSON)', avisos: r.avisos, modelo: r.modelo };
   } catch (e) {
-    // Errores de autenticación, cuota o modelo no se arreglan con dos llamadas.
-    if (e instanceof ErrorApi && [401, 403, 404, 429].includes(e.estado)) throw e;
+    // Clave, cuota, modelo o saturación no se arreglan con dos llamadas.
+    if (e instanceof ErrorApi && [401, 403, 404, 429, 500, 503, 504].includes(e.estado)) throw e;
     motivo = e instanceof Error ? e.message : String(e);
   }
   const lectura = await generar({ clave: o.clave, modelo: o.modelo, prompt: o.promptLectura, urlContext: true, temperatura: 0.2 });
-  const r2 = await generar({ clave: o.clave, modelo: o.modelo, prompt: o.promptEstructurar(lectura.texto), esquema: o.esquema });
+  const r2 = await generar({ clave: o.clave, modelo: lectura.modelo, prompt: o.promptEstructurar(lectura.texto), esquema: o.esquema });
   return {
     datos: parsearJson(r2.texto, o.esquema),
     modo: 'dos llamadas (lectura + JSON)',
     avisos: [...lectura.avisos, `Se usaron dos llamadas porque la combinada falló: ${motivo.slice(0, 200)}`],
+    modelo: r2.modelo,
   };
 }
