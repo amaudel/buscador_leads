@@ -1,8 +1,8 @@
 import { DndContext, PointerSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ESTADOS, SERVICIOS, type Analisis, type EstadoLead, type Lead, type Negocio } from '../../shared/tipos';
-import { Cargando, EtiquetaWeb, Icono, Oportunidad, SelectorEstado, Vacio } from '../componentes/ui';
+import { Avatar, Cargando, EstadoBadge, EtiquetaWeb, Icono, Oportunidad, SelectorEstado, Vacio } from '../componentes/ui';
 import { repo } from '../datos';
 import { useDatos } from '../estado/useDatos';
 import { etiquetaWeb } from '../logica/clasificarWeb';
@@ -29,7 +29,9 @@ export function MisLeads() {
   }, []);
 
   const [vista, setVista] = useState<'tabla' | 'tablero'>('tabla');
-  const [estado, setEstado] = useState('');
+  const [params, setParams] = useSearchParams();
+  const estado = params.get('estado') ?? '';
+  const setEstado = (e: string) => setParams(e ? { estado: e } : {}, { replace: true });
   const [nicho, setNicho] = useState('');
   const [zona, setZona] = useState('');
   const [texto, setTexto] = useState('');
@@ -94,6 +96,17 @@ export function MisLeads() {
         </div>
       </div>
 
+      <div className="cifras">
+        <Link to="/buscar" className="cifra destacada" style={{ textDecoration: 'none' }}>
+          <Icono nombre="buscar" tam={20} />
+          <span>Buscar más negocios</span>
+        </Link>
+        <div className="cifra"><strong>{todas.length}</strong><span>leads guardados</span></div>
+        <div className="cifra"><strong>{todas.filter((f) => f.lead.estado === 'analizado').length}</strong><span>por contactar</span></div>
+        <div className="cifra"><strong>{todas.filter((f) => ['contactado', 'respondio', 'reunion'].includes(f.lead.estado)).length}</strong><span>en conversación</span></div>
+        <div className="cifra"><strong>{todas.filter((f) => f.lead.estado === 'cliente').length}</strong><span>clientes</span></div>
+      </div>
+
       <div className="panel panel-cuerpo fila" style={{ gap: 10 }}>
         <input type="search" placeholder="Buscar por nombre, dirección, notas…" value={texto} onChange={(e) => setTexto(e.target.value)} style={{ flex: '1 1 220px' }} aria-label="Buscar" />
         <select value={estado} onChange={(e) => setEstado(e.target.value)} aria-label="Filtrar por estado">
@@ -141,9 +154,14 @@ function TablaLeads({ filas }: { filas: Fila[] }) {
         <tbody>
           {filas.map(({ n, lead, a }) => (
             <tr key={n.id}>
-              <td style={{ minWidth: 170 }}>
-                <Link to={`/negocio/${n.id}`} className="nombre">{n.nombre}</Link>
-                <div className="tenue" style={{ fontSize: 12 }}>{n.dedicacion}</div>
+              <td>
+                <div className="celda-negocio">
+                  <Avatar nombre={n.nombre} />
+                  <div style={{ minWidth: 0 }}>
+                    <Link to={`/negocio/${n.id}`} className="nombre">{n.nombre}</Link>
+                    <div className="sub">{n.dedicacion}</div>
+                  </div>
+                </div>
               </td>
               <td className="tenue">{n.nicho}<br />{n.zona}</td>
               <td>{telefonoEnlace(n) ? <a href={telefonoEnlace(n)!} style={{ whiteSpace: 'nowrap' }}>{n.telNacional ?? n.telInternacional}</a> : '—'}</td>
@@ -183,18 +201,18 @@ function Tablero({ filas }: { filas: Fila[] }) {
     <DndContext sensors={sensores} onDragEnd={alSoltar}>
       <div className="tablero">
         {ESTADOS.map((e) => (
-          <Columna key={e.id} id={e.id} titulo={e.etiqueta} filas={filas.filter((f) => f.lead.estado === e.id)} />
+          <Columna key={e.id} id={e.id} filas={filas.filter((f) => f.lead.estado === e.id)} />
         ))}
       </div>
     </DndContext>
   );
 }
 
-function Columna({ id, titulo, filas }: { id: EstadoLead; titulo: string; filas: Fila[] }) {
+function Columna({ id, filas }: { id: EstadoLead; filas: Fila[] }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <div ref={setNodeRef} className={`columna ${isOver ? 'sobre' : ''}`}>
-      <div className="cab"><span>{titulo}</span><span className="tenue">{filas.length}</span></div>
+      <div className="cab"><EstadoBadge estado={id} /><span className="muy-tenue">{filas.length}</span></div>
       <div className="lista">
         {filas.map((f) => <Tarjeta key={f.n.id} f={f} />)}
       </div>

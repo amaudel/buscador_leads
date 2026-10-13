@@ -72,6 +72,19 @@ export function Ajustes() {
       </section>
 
       <section className="panel">
+        <div className="panel-cab">
+          <h2>Apariencia</h2>
+          <div className="segmentado" role="group" aria-label="Tema">
+            {(['oscuro', 'claro', 'sistema'] as const).map((t) => (
+              <button key={t} type="button" aria-pressed={a.tema === t} onClick={() => a.cambiar({ tema: t })}>
+                {t === 'oscuro' ? 'Oscuro' : t === 'claro' ? 'Claro' : 'Según el sistema'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="panel">
         <div className="panel-cab"><h2>Mi perfil de vendedor</h2><small>Se usa para redactar los borradores</small></div>
         <div className="panel-cuerpo pila">
           <div className="rejilla-2">

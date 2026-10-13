@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import type { Analisis, Lead, Negocio } from '../../shared/tipos';
 import { puntuar } from '../logica/puntuacion';
 import { telefonoEnlace } from '../logica/texto';
-import { EstadoBadge, EtiquetaWeb, Icono, Oportunidad } from './ui';
+import { Avatar, EstadoBadge, EtiquetaWeb, Icono, Oportunidad } from './ui';
 
 export interface FilaNegocio {
   n: Negocio;
@@ -14,7 +14,7 @@ function Valoracion({ n }: { n: Negocio }) {
   if (n.valoracion == null) return <span className="muy-tenue">Sin valoraciones</span>;
   return (
     <span style={{ whiteSpace: 'nowrap' }}>
-      <span style={{ color: 'var(--menu-activo)' }}>★</span> {n.valoracion.toFixed(1)}{' '}
+      <span style={{ color: 'var(--ambar)' }}>★</span> {n.valoracion.toFixed(1)}{' '}
       <span className="tenue">({n.numResenas})</span>
     </span>
   );
@@ -72,10 +72,15 @@ export function TablaNegocios({ filas, seleccion, alternar, alternarTodos }: Pro
               <td className="col-check">
                 <input type="checkbox" checked={seleccion.includes(n.id)} onChange={() => alternar(n.id)} aria-label={`Seleccionar ${n.nombre}`} />
               </td>
-              <td style={{ minWidth: 180 }}>
-                <Link to={`/negocio/${n.id}`} className="nombre">{n.nombre}</Link>
-                <Cerrado n={n} />
-                <div className="tenue" style={{ fontSize: 12 }}>{n.dedicacion ?? n.nicho}</div>
+              <td>
+                <div className="celda-negocio">
+                  <Avatar nombre={n.nombre} />
+                  <div style={{ minWidth: 0 }}>
+                    <Link to={`/negocio/${n.id}`} className="nombre">{n.nombre}</Link>
+                    <Cerrado n={n} />
+                    <div className="sub">{n.dedicacion ?? n.nicho}</div>
+                  </div>
+                </div>
               </td>
               <td><span className="recortar tenue" title={n.direccion ?? ''}>{n.direccion ?? '—'}</span></td>
               <td><Telefono n={n} /></td>
@@ -104,12 +109,13 @@ export function TarjetasNegocios({ filas, seleccion, alternar }: Props) {
       {filas.map(({ n, lead, analisis }) => (
         <article key={n.id} className={`panel tarjeta ${seleccion.includes(n.id) ? 'seleccionada' : ''}`}>
           <div className="cab">
-            <label className="check" style={{ alignItems: 'flex-start' }}>
+            <label className="check" style={{ alignItems: 'center', gap: 10 }}>
               <input type="checkbox" checked={seleccion.includes(n.id)} onChange={() => alternar(n.id)} aria-label={`Seleccionar ${n.nombre}`} />
+              <Avatar nombre={n.nombre} />
               <span>
                 <Link to={`/negocio/${n.id}`} style={{ fontWeight: 600, color: 'var(--texto)' }}>{n.nombre}</Link>
                 <Cerrado n={n} />
-                <div className="tenue" style={{ fontSize: 12 }}>{n.dedicacion ?? n.nicho}</div>
+                <div className="sub">{n.dedicacion ?? n.nicho}</div>
               </span>
             </label>
             <Oportunidad p={puntuar(n, analisis)} />

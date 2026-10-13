@@ -24,7 +24,7 @@ test('flujo completo: buscar → guardar → analizar → borradores → leads �
   await page.screenshot({ path: `${capturas}/0-ajustes.png`, fullPage: true });
 
   // Buscar
-  await page.getByRole('link', { name: 'Buscar' }).click();
+  await page.getByRole('link', { name: 'Buscar', exact: true }).click();
   await page.getByPlaceholder(/Ciudad, barrio/).fill('Cuenca, Ecuador');
   await page.getByPlaceholder('p. ej. talleres mecánicos').fill('talleres mecánicos');
   await page.getByRole('button', { name: 'Buscar', exact: true }).click();
@@ -86,7 +86,7 @@ test('flujo completo: buscar → guardar → analizar → borradores → leads �
   await expect(page.getByText('PageSpeed en móvil')).toHaveCount(0);
 
   // Mis leads
-  await page.getByRole('link', { name: 'Mis leads' }).click();
+  await page.getByRole('link', { name: /^Mis leads/ }).click();
   await expect(page.locator('tbody tr')).toHaveCount(2);
   const [descarga] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Exportar CSV' }).click()]);
   const csv = await (await descarga.createReadStream()).toArray();
@@ -97,7 +97,7 @@ test('flujo completo: buscar → guardar → analizar → borradores → leads �
   await page.screenshot({ path: `${capturas}/6-tablero.png`, fullPage: true });
 
   // Error real de la API
-  await page.getByRole('link', { name: 'Buscar' }).click();
+  await page.getByRole('link', { name: 'Buscar', exact: true }).click();
   await page.getByPlaceholder(/Ciudad, barrio/).fill('Cuenca, Ecuador');
   await page.getByPlaceholder('p. ej. talleres mecánicos').fill('error');
   await page.getByRole('button', { name: 'Buscar', exact: true }).click();
@@ -137,4 +137,16 @@ test('móvil: tarjetas y menú inferior', async ({ browser }) => {
   const ancho = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(ancho).toBeLessThanOrEqual(390);
   await ctx.close();
+});
+
+test('capturas de diseño en tema claro', async ({ page }) => {
+  await simularApi(page);
+  await page.addInitScript(() => localStorage.setItem('radar-ajustes', JSON.stringify({ state: { claveGemini: 'a', claveGoogle: 'b', tema: 'claro' }, version: 1 })));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/buscar');
+  await page.getByPlaceholder(/Ciudad, barrio/).fill('Cuenca, Ecuador');
+  await page.getByPlaceholder('p. ej. talleres mecánicos').fill('talleres mecánicos');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(page.getByText('negocios encontrados')).toBeVisible();
+  await page.screenshot({ path: `${capturas}/10-claro.png`, fullPage: true });
 });

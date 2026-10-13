@@ -3,7 +3,10 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { PerfilVendedor } from '../../shared/tipos';
 
+export type Tema = 'oscuro' | 'claro' | 'sistema';
+
 export interface Ajustes {
+  tema: Tema;
   claveGoogle: string;
   claveGemini: string;
   regionCode: string;
@@ -25,6 +28,7 @@ export const mesActual = () => new Date().toISOString().slice(0, 7);
 export const useAjustes = create<Ajustes & Acciones>()(
   persist(
     (set) => ({
+      tema: 'oscuro',
       claveGoogle: '',
       claveGemini: '',
       regionCode: 'ES',

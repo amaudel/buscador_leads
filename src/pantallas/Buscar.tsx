@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { mensajeError } from '../api/cliente';
 import { TablaNegocios, TarjetasNegocios, type FilaNegocio } from '../componentes/Negocios';
-import { Cargando, ErrorCaja, Vacio } from '../componentes/ui';
+import { Cargando, ErrorCaja, Icono, Vacio } from '../componentes/ui';
 import { repo } from '../datos';
 import { useAjustes, usoDelMes } from '../datos/ajustes';
 import { useCola } from '../estado/analisis';
@@ -106,6 +106,16 @@ export function Buscar() {
   const vista = movil ? 'tarjetas' : s.vista;
   const seleccionados = todas.filter((f) => s.seleccion.includes(f.n.id)).map((f) => f.n);
   const sinWeb = todas.filter((f) => f.n.tipoWeb !== 'propia').length;
+  const conTelefono = todas.filter((f) => f.n.telNacional || f.n.telInternacional).length;
+  const conValoracion = todas.filter((f) => f.n.valoracion != null);
+  const mediaValoracion = conValoracion.length
+    ? (conValoracion.reduce((t, f) => t + (f.n.valoracion ?? 0), 0) / conValoracion.length).toFixed(1)
+    : '—';
+  const top5 = [...todas]
+    .filter((f) => !f.analisis && (!f.n.estadoNegocio || f.n.estadoNegocio === 'OPERATIONAL'))
+    .sort((a, b) => puntuar(b.n, b.analisis).total - puntuar(a.n, a.analisis).total)
+    .slice(0, 5)
+    .map((f) => f.n);
   const props = {
     filas,
     seleccion: s.seleccion,
@@ -177,6 +187,25 @@ export function Buscar() {
             Por ejemplo «talleres mecánicos» en «Cuenca, Ecuador». Cada página de 20 resultados gasta una llamada a Places;
             las búsquedas repetidas salen de la caché.
           </Vacio>
+        </div>
+      )}
+
+      {s.cache && todas.length > 0 && (
+        <div className="cifras">
+          <button
+            type="button"
+            className="cifra destacada"
+            disabled={!top5.length}
+            onClick={() => analizar(top5)}
+            title="Analiza la web de los negocios con mayor puntuación que aún no se han analizado"
+          >
+            <Icono nombre="radar" tam={20} />
+            <span>{top5.length ? `Analizar los ${top5.length} con más oportunidad` : 'Todos analizados'}</span>
+          </button>
+          <div className="cifra"><strong>{todas.length}</strong><span>negocios encontrados</span></div>
+          <div className="cifra"><strong>{todas.length ? Math.round((sinWeb / todas.length) * 100) : 0}%</strong><span>sin web propia</span></div>
+          <div className="cifra"><strong>{conTelefono}</strong><span>con teléfono</span></div>
+          <div className="cifra"><strong>{mediaValoracion}</strong><span>valoración media</span></div>
         </div>
       )}
 

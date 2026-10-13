@@ -225,8 +225,8 @@ function PanelAnalisis({ n, analisis }: { n: Negocio; analisis?: Analisis }) {
                 ))}
               </ol>
             </div>
-            <div className="info-caja" style={{ borderColor: 'var(--acento)', background: 'var(--acento-suave)', color: 'var(--texto)' }}>
-              <strong style={{ color: 'var(--acento)' }}>Qué le ofrecería: {SERVICIOS[g.servicio.tipo] ?? g.servicio.tipo}.</strong> {g.servicio.porque}
+            <div className="destacado-caja">
+              <strong>Qué le ofrecería: {SERVICIOS[g.servicio.tipo] ?? g.servicio.tipo}.</strong> {g.servicio.porque}
             </div>
           </>
         )}

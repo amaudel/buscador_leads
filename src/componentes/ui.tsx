@@ -16,6 +16,11 @@ const RUTAS_ICONO: Record<string, string> = {
   descargar: 'M12 4v11m0 0-4-4m4 4 4-4M5 20h14',
   wa: 'M4 20l1.3-4A8 8 0 1 1 8 18.7zM9 9c0 3 3 6 6 6l1-1.5-2-1-1 1c-1 0-2.5-1.5-2.5-2.5l1-1-1-2z',
   volver: 'M15 18l-6-6 6-6',
+  sol: 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
+  luna: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z',
+  punto: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
+  mas: 'M12 5v14M5 12h14',
+  chevron: 'M8 10l4 4 4-4',
 };
 
 export function Icono({ nombre, tam = 16 }: { nombre: keyof typeof RUTAS_ICONO; tam?: number }) {
@@ -24,6 +29,19 @@ export function Icono({ nombre, tam = 16 }: { nombre: keyof typeof RUTAS_ICONO; 
       <path d={RUTAS_ICONO[nombre]} />
     </svg>
   );
+}
+
+/** Cuadro con las iniciales del negocio, como el icono de archivo de Papra. */
+export function Avatar({ nombre }: { nombre: string }) {
+  const iniciales = nombre
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .split(/\s+/)
+    .filter((p) => p.length > 2 || /\d/.test(p))
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join('')
+    .toUpperCase();
+  return <span className="avatar" aria-hidden="true">{iniciales || nombre.slice(0, 2).toUpperCase()}</span>;
 }
 
 export function Nota({ valor, titulo }: { valor: number | null | undefined; titulo?: string }) {
@@ -135,11 +153,11 @@ export function EtiquetaWeb({ n, recortar = true }: { n: Negocio; recortar?: boo
 }
 
 const COLOR_ESTADO: Record<EstadoLead, string> = {
-  nuevo: '', analizado: 'acento', contactado: 'ambar', respondio: 'ambar', reunion: 'verde', cliente: 'verde', descartado: 'rojo',
+  nuevo: '', analizado: 'azul', contactado: 'ambar', respondio: 'violeta', reunion: 'acento', cliente: 'verde', descartado: 'rojo',
 };
 
 export function EstadoBadge({ estado }: { estado: EstadoLead | null | undefined }) {
-  if (!estado) return <span className="muy-tenue">No guardado</span>;
+  if (!estado) return <span className="muy-tenue" style={{ whiteSpace: 'nowrap' }}>No guardado</span>;
   return <span className={`etiqueta ${COLOR_ESTADO[estado]}`}>{ESTADOS.find((e) => e.id === estado)?.etiqueta}</span>;
 }
 
