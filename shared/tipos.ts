@@ -50,8 +50,20 @@ export const ESTADOS: { id: EstadoLead; etiqueta: string }[] = [
   { id: 'descartado', etiqueta: 'Descartado' },
 ];
 
+export interface ContactoComercial {
+  nombre: string;
+  cargo: string;
+  email: string | null;
+  verificacion: 'valid' | 'invalid' | 'accept_all' | 'unknown';
+  proveedor: string;
+  fecha: string;
+  callId: string | null;
+  costoUsd: number;
+}
+
 export interface Lead {
   negocioId: string;
+  contacto?: ContactoComercial;
   estado: EstadoLead;
   notas: string;
   proximaAccion: string | null; // AAAA-MM-DD
