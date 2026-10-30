@@ -5,7 +5,7 @@ import { repo } from '../datos';
 import { useDatos } from '../estado/useDatos';
 import { actualizarLead } from '../logica/leads';
 import { evaluarICP, indicadoresFunnel, PERFILES, type PerfilICP } from '../logica/icp';
-import { SelectorEstado } from '../componentes/ui';
+import { EtiquetaWeb, SelectorEstado } from '../componentes/ui';
 import type { Analisis, Lead, Negocio } from '../../shared/tipos';
 
 type Fila = { n: Negocio; l: Lead; a?: Analisis };
@@ -26,6 +26,7 @@ export function Inteligencia() {
   }, []);
   const [perfil, setPerfil] = useState<PerfilICP>('web');
   const [sectorSolo, setSectorSolo] = useState(true);
+  const [soloConWeb, setSoloConWeb] = useState(false);
   const [seleccionId, setSeleccionId] = useState<string | null>(null);
   const [estadoTreg, setEstadoTreg] = useState<{ habilitado: boolean; topePorLlamadaUsd: number } | null>(null);
   const [clave, setClave] = useState(''); // deliberadamente solo memoria React
@@ -40,11 +41,15 @@ export function Inteligencia() {
 
   useEffect(() => { treg.estado().then(setEstadoTreg).catch(() => setEstadoTreg(null)); }, []);
   const todas = datos ?? [];
-  const ordenadas = useMemo(() =>
-    todas.map((f) => ({ ...f, icp: evaluarICP(f.n, f.a, perfil) }))
-      .filter((f) => !sectorSolo || f.icp.coincidencia)
-      .sort((a, b) => b.icp.puntuacion - a.icp.puntuacion),
-    [todas, perfil, sectorSolo]);
+  const conWebPropia = (n: Negocio) => n.tipoWeb === 'propia' && Boolean(n.web);
+  const { ordenadas, ocultosSector, ocultosWeb } = useMemo(() => {
+    const evaluadas = todas.map((f) => ({ ...f, icp: evaluarICP(f.n, f.a, perfil) }));
+    const delSector = evaluadas.filter((f) => !sectorSolo || f.icp.coincidencia);
+    const visibles = delSector.filter((f) => !soloConWeb || conWebPropia(f.n));
+    // A igual puntuación, primero las que tienen web propia (las únicas que Treg puede buscar).
+    visibles.sort((a, b) => b.icp.puntuacion - a.icp.puntuacion || Number(conWebPropia(b.n)) - Number(conWebPropia(a.n)));
+    return { ordenadas: visibles, ocultosSector: evaluadas.length - delSector.length, ocultosWeb: delSector.length - visibles.length };
+  }, [todas, perfil, sectorSolo, soloConWeb]);
   const funnel = indicadoresFunnel(todas.map((f) => f.l));
   const seleccion = todas.find((f) => f.n.id === seleccionId);
   const tope = estadoTreg?.topePorLlamadaUsd ?? 0.15;
@@ -100,6 +105,7 @@ export function Inteligencia() {
         <div className="campo">
           <span>Filtro de mercado objetivo</span>
           <label className="check"><input type="checkbox" checked={sectorSolo} onChange={(e) => setSectorSolo(e.target.checked)} /> Solo negocios del sector compatible</label>
+          <label className="check"><input type="checkbox" checked={soloConWeb} onChange={(e) => setSoloConWeb(e.target.checked)} /> Solo con web propia (para buscar contactos)</label>
           <small>{PERFILES[perfil].descripcion}</small>
         </div>
       </div>
@@ -121,26 +127,33 @@ export function Inteligencia() {
 
     <section className="panel">
       <div className="panel-cab"><h2>Prospectos priorizados ({ordenadas.length})</h2><small>Seleccione una empresa para descubrir decisores y verificar contactos</small></div>
-      {sectorSolo && todas.length > ordenadas.length && (
+      {todas.length > ordenadas.length && (
         <div className="panel-cuerpo fila entre" style={{ borderBottom: '1px solid var(--borde)' }}>
           <span className="tenue">
-            {todas.length - ordenadas.length} de {todas.length} leads ocultos porque no son del sector de «{PERFILES[perfil].nombre}».
+            {todas.length - ordenadas.length} de {todas.length} leads ocultos
+            {ocultosSector > 0 ? ` · ${ocultosSector} no son del sector de «${PERFILES[perfil].nombre}»` : ''}
+            {ocultosWeb > 0 ? ` · ${ocultosWeb} sin web propia` : ''}.
           </span>
-          <button className="pequeno" onClick={() => setSectorSolo(false)}>Ver todos</button>
+          <button className="pequeno" onClick={() => { setSectorSolo(false); setSoloConWeb(false); }}>Ver todos</button>
         </div>
       )}
       <div className="tabla-contenedor">
         <table className="tabla">
-          <thead><tr><th>Empresa</th><th>Sector</th><th>Puntaje ICP</th><th>Estado</th><th>Contacto</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Empresa</th><th>Sector</th><th>Web</th><th>Puntaje ICP</th><th>Estado</th><th>Contacto</th><th>Acciones</th></tr></thead>
           <tbody>
             {ordenadas.map((f) => <tr key={f.n.id}>
               <td className="nombre"><Link to={`/negocio/${encodeURIComponent(f.n.id)}`}>{f.n.nombre}</Link><small style={{ display: 'block' }}>{f.n.zona}</small></td>
               <td>{f.n.dedicacion ?? f.n.nicho}</td>
+              <td><EtiquetaWeb n={f.n} /></td>
               <td><strong>{f.icp.puntuacion}/100</strong><small style={{ display: 'block' }}>{f.icp.confianza === 'con-evidencia' ? 'Con análisis web' : 'Preliminar'}</small></td>
               <td><SelectorEstado valor={f.l.estado} alCambiar={(estado) => actualizarLead(f.n.id, { estado })} /></td>
               <td>{f.l.contacto?.email ? <><span>{f.l.contacto.email}</span><small style={{ display: 'block' }}>Verificación: {f.l.contacto.verificacion}</small></> : 'Pendiente'}</td>
               <td><div className="fila">
-                <button className="pequeno" onClick={() => { elegir(f); setVerDetalle(null); }}>Prospectar</button>
+                {conWebPropia(f.n) ? (
+                  <button className="pequeno" onClick={() => { elegir(f); setVerDetalle(null); }}>Prospectar</button>
+                ) : (
+                  <button className="pequeno" disabled title="Treg necesita la web propia de la empresa para buscar contactos">Sin dominio</button>
+                )}
                 <button className="pequeno fantasma" onClick={() => setVerDetalle(verDetalle === f.n.id ? null : f.n.id)}>Motivos</button>
               </div></td>
             </tr>)}

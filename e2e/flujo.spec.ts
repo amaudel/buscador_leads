@@ -174,6 +174,14 @@ test('Inteligencia B2B muestra todos los leads por defecto y avisa de los oculto
   await page.getByRole('button', { name: 'Guardar en mis leads' }).click();
   await page.getByRole('link', { name: 'Inteligencia B2B' }).click();
   await expect(page.getByText('Prospectos priorizados (2)')).toBeVisible();
+  // Columna Web y botón según tenga o no web propia
+  await expect(page.getByRole('cell', { name: 'tallerperez.com.ec' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Prospectar' })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Sin dominio' })).toBeDisabled();
+  await page.getByLabel(/Solo con web propia/).check();
+  await expect(page.getByText('Prospectos priorizados (1)')).toBeVisible();
+  await expect(page.getByText(/1 sin web propia/)).toBeVisible();
+  await page.getByLabel(/Solo con web propia/).uncheck();
   await page.getByRole('combobox').first().selectOption('nidocerca');
   await expect(page.getByText('2 de 2 leads ocultos')).toBeVisible();
   await page.getByRole('button', { name: 'Ver todos' }).click();
