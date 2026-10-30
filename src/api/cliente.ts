@@ -73,3 +73,40 @@ export const api = {
   nichos: (zona: string, metricas: MetricaNicho[], perfil: PerfilVendedor) =>
     llamar<RankingNichos & { modelo: string }>('POST', '/api/gemini/nichos', { zona, metricas, perfil }),
 };
+
+/** El secreto administrativo solo se conserva en la memoria del formulario, nunca en localStorage. */
+export interface PersonaTreg {
+  nombre: string;
+  cargo: string;
+  linkedin: string | null;
+  email: string | null;
+  verificacion: 'valid' | 'invalid' | 'accept_all' | 'unknown';
+}
+interface AuditoriaTreg {
+  callId: string | null;
+  proveedor: string;
+  costoUsd: number;
+  topePorLlamadaUsd: number;
+  fecha: string;
+}
+async function llamarTreg<T>(ruta: string, clave: string, cuerpo: Record<string, unknown>): Promise<T> {
+  const res = await fetch(ruta, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-leads-admin-key': clave },
+    body: JSON.stringify(cuerpo),
+  });
+  const datos = await res.json() as T & { error?: { origen: string; mensaje: string } };
+  if (!res.ok) throw new FalloApi(datos.error?.origen ?? 'Treg', res.status, datos.error?.mensaje ?? 'Consulta fallida');
+  return datos;
+}
+export const treg = {
+  estado: async () => {
+    const res = await fetch('/api/treg/estado');
+    if (!res.ok) throw new Error('No se pudo consultar la configuración de Treg');
+    return res.json() as Promise<{ habilitado: boolean; topePorLlamadaUsd: number }>;
+  },
+  personas: (clave: string, domain: string, cargo: string) =>
+    llamarTreg<{ personas: PersonaTreg[] } & AuditoriaTreg>('/api/treg/personas', clave, { domain, cargo }),
+  correo: (clave: string, domain: string, fullName: string, cargo: string) =>
+    llamarTreg<{ contacto: import('../../shared/tipos').ContactoComercial } & AuditoriaTreg>('/api/treg/correo', clave, { domain, fullName, cargo }),
+};
