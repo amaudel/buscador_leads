@@ -28,7 +28,7 @@ function exigirAcceso(req: Request, env: Env): string {
 
 function dominioValido(v: unknown): string {
   if (typeof v !== 'string') throw new ErrorApi('Treg', 400, 'Indique el dominio empresarial.');
-  const dominio = v.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const dominio = v.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/[/?#].*$/, '').replace(/^www\./, '');
   if (dominio.length > 253 || !/^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i.test(dominio)) {
     throw new ErrorApi('Treg', 400, 'Dominio empresarial no válido.');
   }
@@ -139,7 +139,8 @@ export async function tregPersonas(req: Request, env: Env) {
   const domain = dominioValido(b.domain);
   const cargo = str(b.cargo) as Cargo;
   if (!CARGOS.includes(cargo)) throw new ErrorApi('Treg', 400, 'Seleccione un cargo permitido.');
-  const r = await consultarTreg(token, 'treg.people.search', { domain, title: cargo, limit: 5 }, 'personas');
+  // people.search usa company_domain (people.email.find usa domain). limit es el «dial de precio».
+  const r = await consultarTreg(token, 'treg.people.search', { company_domain: domain, title: cargo, limit: 5 }, 'personas');
   return { personas: extraerPersonas(r.payload).map((p) => ({ ...p, email: null, verificacion: 'unknown' as const })), ...r.auditoria };
 }
 

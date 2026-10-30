@@ -58,3 +58,14 @@ describe('Treg: petición mal formada', () => {
     await expect(tregCorreo(malo, env())).rejects.toThrow(/JSON válido/);
   });
 });
+
+describe('Treg: campos según el catálogo', () => {
+  it('people.search envía company_domain, title y limit', async () => {
+    const f = vi.fn(async (_url: string, _o: RequestInit) => new Response(JSON.stringify({ output: { people: [] } })));
+    vi.stubGlobal('fetch', f);
+    await tregPersonas(req({ domain: 'https://www.empresa.com.ec/contacto', cargo: 'owner' }), env());
+    const [url, o] = f.mock.calls[0];
+    expect(url).toBe('https://treg.to/call/treg.people.search');
+    expect(JSON.parse(o.body as string)).toEqual({ company_domain: 'empresa.com.ec', title: 'owner', limit: 5 });
+  });
+});
