@@ -48,6 +48,7 @@ export function Layout() {
         </div>
         <NavLink to="/buscar"><Icono nombre="buscar" tam={17} />Buscar</NavLink>
         <NavLink to="/radar"><Icono nombre="radar" tam={17} />Radar de nichos</NavLink>
+        <NavLink to="/inteligencia"><Icono nombre="radar" tam={17} />Inteligencia B2B</NavLink>
         <NavLink to="/leads" className={({ isActive }) => (isActive && !vistaActiva ? 'active' : '')}>
           <Icono nombre="leads" tam={17} />Mis leads
           {leads ? <span className="contador">{leads.length}</span> : null}
