@@ -160,3 +160,22 @@ test('capturas de diseño en tema claro', async ({ page }) => {
   await expect(page.getByText('negocios encontrados')).toBeVisible();
   await page.screenshot({ path: `${capturas}/10-claro.png`, fullPage: true });
 });
+
+test('Inteligencia B2B muestra todos los leads por defecto y avisa de los ocultos', async ({ page }) => {
+  await simularApi(page);
+  await page.route('**/api/treg/estado', (r) => r.fulfill({ json: { habilitado: false, topePorLlamadaUsd: 0.15 } }));
+  await page.addInitScript(() => localStorage.setItem('radar-ajustes', JSON.stringify({ state: { claveGemini: 'a', claveGoogle: 'b' }, version: 1 })));
+  await page.goto('/buscar');
+  await page.getByPlaceholder(/Ciudad, barrio/).fill('Cuenca, Ecuador');
+  await page.getByPlaceholder('p. ej. talleres mecánicos').fill('talleres mecánicos');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await page.getByLabel(/Seleccionar Taller Pérez 1/).check();
+  await page.getByLabel(/Seleccionar Taller Andino 2/).check();
+  await page.getByRole('button', { name: 'Guardar en mis leads' }).click();
+  await page.getByRole('link', { name: 'Inteligencia B2B' }).click();
+  await expect(page.getByText('Prospectos priorizados (2)')).toBeVisible();
+  await page.getByRole('combobox').first().selectOption('nidocerca');
+  await expect(page.getByText('2 de 2 leads ocultos')).toBeVisible();
+  await page.getByRole('button', { name: 'Ver todos' }).click();
+  await expect(page.getByText('Prospectos priorizados (2)')).toBeVisible();
+});

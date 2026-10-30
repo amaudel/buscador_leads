@@ -24,7 +24,7 @@ export function Inteligencia() {
     const am = new Map(analisis.map((a) => [a.negocioId, a]));
     return leads.flatMap((l): Fila[] => nm.has(l.negocioId) ? [{ l, n: nm.get(l.negocioId)!, a: am.get(l.negocioId) }] : []);
   }, []);
-  const [perfil, setPerfil] = useState<PerfilICP>('nixgofood');
+  const [perfil, setPerfil] = useState<PerfilICP>('web');
   const [sectorSolo, setSectorSolo] = useState(true);
   const [seleccionId, setSeleccionId] = useState<string | null>(null);
   const [estadoTreg, setEstadoTreg] = useState<{ habilitado: boolean; topePorLlamadaUsd: number } | null>(null);
@@ -121,6 +121,14 @@ export function Inteligencia() {
 
     <section className="panel">
       <div className="panel-cab"><h2>Prospectos priorizados ({ordenadas.length})</h2><small>Seleccione una empresa para descubrir decisores y verificar contactos</small></div>
+      {sectorSolo && todas.length > ordenadas.length && (
+        <div className="panel-cuerpo fila entre" style={{ borderBottom: '1px solid var(--borde)' }}>
+          <span className="tenue">
+            {todas.length - ordenadas.length} de {todas.length} leads ocultos porque no son del sector de «{PERFILES[perfil].nombre}».
+          </span>
+          <button className="pequeno" onClick={() => setSectorSolo(false)}>Ver todos</button>
+        </div>
+      )}
       <div className="tabla-contenedor">
         <table className="tabla">
           <thead><tr><th>Empresa</th><th>Sector</th><th>Puntaje ICP</th><th>Estado</th><th>Contacto</th><th>Acciones</th></tr></thead>
@@ -150,7 +158,7 @@ export function Inteligencia() {
       })() : null}
       {!cargando && todas.length === 0 && <div className="panel-cuerpo">Todavía no hay leads guardados. <Link to="/buscar">Busque empresas</Link> y guárdelas primero.</div>}
       {cargando && <div className="panel-cuerpo">Cargando información comercial…</div>}
-      {!cargando && todas.length > 0 && ordenadas.length === 0 && <div className="panel-cuerpo">No hay leads del sector elegido. Desactive el filtro para revisar las demás empresas.</div>}
+      {!cargando && todas.length > 0 && ordenadas.length === 0 && <div className="panel-cuerpo">No hay leads del sector elegido. Pulse «Ver todos» para revisar las demás empresas.</div>}
     </section>
 
     <section className="panel" style={{ scrollMarginTop: 80 }}>
