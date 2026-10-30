@@ -7,6 +7,10 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
   },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // Catastro RUC del SRI (datos abiertos, Azuay). Carga: scripts/importar-sri.mjs
+  "d1_databases": [
+    { "binding": "SRI_DB", "database_name": "radar-sri", "database_id": "30e1f35b-c116-47f6-bacb-ff37d803cff7" }
+  ]
   // Secretos (no van aquí): wrangler secret put GEMINI_API_KEY / GOOGLE_CLOUD_API_KEY
 }

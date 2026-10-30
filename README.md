@@ -128,3 +128,18 @@ Cada petición Treg tiene una reserva máxima de **$0.15** mediante `X-Treg-Rout
 - No incorpora todavía D1 ni autenticación multiusuario. Para comercializar la aplicación, esas capacidades, junto a controles acumulativos de gasto y políticas de privacidad, siguen siendo requisitos independientes.
 
 Documentación de integración Treg: https://treg.to/integrate.md
+
+
+## Dueño según el SRI (datos abiertos)
+
+El botón **«Buscar dueño en el SRI»** (en la Ficha y en Inteligencia B2B) busca el negocio en el catastro RUC que el SRI publica como datos abiertos. Si es **persona natural**, la razón social es el nombre del dueño. Si es **sociedad**, la app enlaza a la consulta pública de la Superintendencia de Compañías para ver el representante legal; esa consulta no se automatiza. El usuario confirma siempre la coincidencia, y es gratis: Cloudflare D1.
+
+Para cargar o actualizar Azuay (otras provincias: `SRI_RUC_<Provincia>.csv`):
+
+```bash
+curl -o SRI_RUC_Azuay.csv https://descargas.sri.gob.ec/download/datosAbiertos/SRI_RUC_Azuay.csv
+node scripts/importar-sri.mjs SRI_RUC_Azuay.csv          # solo ACTIVO + establecimiento abierto
+for f in .wrangler/sri/*.sql; do npx wrangler d1 execute radar-sri --remote --yes --file "$f"; done
+```
+
+Los datos personales del catastro deben usarse solo para contacto comercial uno a uno, conforme a la Ley Orgánica de Protección de Datos Personales.
