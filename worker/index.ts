@@ -5,11 +5,15 @@ import type { MetricaNicho, NegocioPlaces, PerfilVendedor, RespuestaPlaces, Resu
 import { ErrorApi, comprobar } from './errores';
 import { generar, generarConUrl, parsearJson, probarClave, resolverModelo } from './gemini';
 import * as P from './prompts';
+import { tregEstado, tregPersonas, tregCorreo } from './treg';
 
 export interface Env {
   ASSETS: Fetcher;
   GEMINI_API_KEY?: string;
   GOOGLE_CLOUD_API_KEY?: string;
+  TREG_TOKEN?: string;
+  TREG_ENABLED?: string;
+  TREG_ACCESS_KEY?: string;
 }
 
 const json = (datos: unknown, estado = 200) =>
@@ -208,6 +212,9 @@ async function probar(req: Request, env: Env) {
 
 const RUTAS: Record<string, (req: Request, env: Env) => Promise<unknown>> = {
   'GET /api/estado': estado,
+  'GET /api/treg/estado': async (req, env) => tregEstado(req, env),
+  'POST /api/treg/personas': tregPersonas,
+  'POST /api/treg/correo': tregCorreo,
   'POST /api/probar': probar,
   'POST /api/places/search': buscarPlaces,
   'POST /api/pagespeed': pagespeed,
