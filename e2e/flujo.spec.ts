@@ -66,45 +66,72 @@ test('flujo completo: buscar → guardar → analizar → borradores → leads �
   await page.screenshot({ path: `${capturas}/3-cola.png` });
   await expect(page.getByText('Análisis terminado (2)')).toBeVisible({ timeout: 15_000 });
 
-  // Ficha
+  // Ficha guiada por pasos
   await page.getByRole('link', { name: 'Taller Pérez 1' }).first().click();
   await expect(page.getByRole('heading', { name: 'Taller Pérez 1' })).toBeVisible();
+  // Ya analizado: el siguiente paso es buscar al dueño y la ficha abre en esa pestaña
+  await expect(page.getByText('Averigua quién es el dueño o quién decide.')).toBeVisible();
+  await expect(page.getByRole('tab', { name: /Dueño y contacto/ })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('button', { name: 'Buscar dueño en el SRI' }).click();
+  await expect(page.getByText('PEREZ MONTAÑO JUAN CARLOS')).toBeVisible();
+  await expect(page.getByText(/Es una compañía/)).toBeVisible();
+  await page.getByRole('button', { name: 'Guardar como dueño' }).click();
+  await expect(page.getByText('Guardado: Juan Carlos Perez Montaño es el dueño')).toBeVisible();
+  await expect(page.getByText('Juan Carlos Perez Montaño').first()).toBeVisible();
+  await page.screenshot({ path: `${capturas}/4a-ficha-dueno.png`, fullPage: true });
+
+  // Pestaña Análisis
+  await page.getByRole('tab', { name: /Análisis/ }).click();
   await expect(page.getByText('PageSpeed en móvil')).toBeVisible();
   await expect(page.getByText('Botón de WhatsApp', { exact: true })).toBeVisible();
-  await expect(page.getByText('info@tallerperez.com.ec').first()).toBeVisible();
+
+  // Siguiente paso → mensajes
+  await expect(page.getByText('Prepara el primer mensaje personalizado.')).toBeVisible();
+  await page.getByRole('button', { name: 'Redactar mensajes' }).click();
   await page.getByRole('button', { name: 'Redactar borradores' }).click();
   await expect(page.getByText('Guion de llamada (30 s)')).toBeVisible();
   await expect(page.getByText('Borradores para contactar de forma personal. No envíes mensajes comerciales masivos sin consentimiento.')).toBeVisible();
   await page.getByLabel('Tono').selectOption('cercano');
   await page.getByRole('button', { name: 'Regenerar con este tono' }).click();
   await expect(page.getByText('(Tono cercano)')).toBeVisible();
+  await page.screenshot({ path: `${capturas}/4b-ficha-mensajes.png`, fullPage: true });
+
+  // Siguiente paso → contactar → seguimiento
+  await page.getByRole('button', { name: 'Ya lo contacté' }).click();
+  await expect(page.getByText('Marcado como contactado. Próxima acción en 3 días.')).toBeVisible();
+  await expect(page.getByText('Espera respuesta y pon fecha a la próxima acción.')).toBeVisible();
+  await page.getByRole('button', { name: /Lo llamé/ }).click();
+  await expect(page.getByPlaceholder(/Con quién hablaste/)).toHaveValue(/Llamada/);
   await page.getByPlaceholder(/Con quién hablaste/).fill('Llamar el lunes, habla con Don Jorge');
-  await page.getByLabel('Estado').selectOption('contactado');
   await expect(page.getByText('Guardado', { exact: true })).toBeVisible();
-  // Dueño según el SRI
-  await page.getByRole('button', { name: 'Buscar dueño en el SRI' }).click();
-  await expect(page.getByText('PEREZ MONTAÑO JUAN CARLOS')).toBeVisible();
-  await expect(page.getByText(/Es una compañía/)).toBeVisible();
-  await page.getByRole('button', { name: 'Guardar como dueño' }).click();
-  await expect(page.getByText('Dueño según SRI:', { exact: false }).first()).toBeVisible();
-  await expect(page.getByText('Juan Carlos Perez Montaño').first()).toBeVisible();
-  await page.screenshot({ path: `${capturas}/4-ficha.png`, fullPage: true });
+  await page.screenshot({ path: `${capturas}/4c-ficha-seguimiento.png`, fullPage: true });
 
   // Versión imprimible
-  const [imp] = await Promise.all([page.waitForEvent('popup'), page.getByRole('link', { name: 'Exportar ficha' }).click()]);
+  const [imp] = await Promise.all([page.waitForEvent('popup'), page.getByRole('link', { name: 'PDF' }).click()]);
   await imp.evaluate(() => (window.print = () => {}));
   await expect(imp.getByText('Llamar el lunes, habla con Don Jorge')).toBeVisible();
   await imp.screenshot({ path: `${capturas}/5-imprimir.png`, fullPage: true });
   await imp.close();
 
   // Ficha sin web
-  await page.goto('/negocio/p2');
+  await page.goto('/negocio/p2?paso=analisis');
   await expect(page.getByText('Oportunidad: Sin web.')).toBeVisible();
   await expect(page.getByText('PageSpeed en móvil')).toHaveCount(0);
+
+  // Ficha sin web: Treg no aplica
+  await page.getByRole('tab', { name: /Dueño y contacto/ }).click();
+  await expect(page.getByText(/Treg necesita la web propia/)).toBeVisible();
+
+  // Inicio: puesta en marcha y «Tu día»
+  await page.getByRole('link', { name: 'Inicio' }).click();
+  await expect(page.getByText('Cómo funciona')).toBeVisible();
+  await expect(page.getByText('Listos para contactar')).toBeVisible();
+  await page.screenshot({ path: `${capturas}/0b-inicio.png`, fullPage: true });
 
   // Mis leads
   await page.getByRole('link', { name: /^Mis leads/ }).click();
   await expect(page.locator('tbody tr')).toHaveCount(2);
+  await expect(page.getByRole('link', { name: 'Buscar dueño' })).toBeVisible();
   const [descarga] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Exportar CSV' }).click()]);
   const csv = await (await descarga.createReadStream()).toArray();
   const texto = Buffer.concat(csv).toString('utf8');

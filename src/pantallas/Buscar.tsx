@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { mensajeError } from '../api/cliente';
 import { TablaNegocios, TarjetasNegocios, type FilaNegocio } from '../componentes/Negocios';
 import { Cargando, ErrorCaja, Icono, Vacio } from '../componentes/ui';
+import { avisar } from '../componentes/Toast';
 import { repo } from '../datos';
 import { useAjustes, usoDelMes } from '../datos/ajustes';
 import { useCola } from '../estado/analisis';
@@ -129,7 +130,13 @@ export function Buscar() {
     .sort((a, b) => puntuar(b.n, b.analisis).total - puntuar(a.n, a.analisis).total)
     .slice(0, 5)
     .map((f) => f.n);
+  const guardarUno = async (id: string) => {
+    await guardarVarios([id]);
+    const n = todas.find((f) => f.n.id === id)?.n;
+    avisar(`${n?.nombre ?? 'Negocio'} guardado en Mis leads`, { enlace: { a: `/negocio/${id}`, texto: 'Abrir ficha' } });
+  };
   const props = {
+    alGuardar: guardarUno,
     filas,
     seleccion: s.seleccion,
     alternar: s.alternar,
@@ -196,9 +203,27 @@ export function Buscar() {
 
       {!s.cache && !s.cargando && !s.error && (
         <div className="panel">
-          <Vacio titulo="Empieza escribiendo una zona y un nicho">
-            Por ejemplo «talleres mecánicos» en «Cuenca, Ecuador». Cada página de 20 resultados gasta una llamada a Places;
-            las búsquedas repetidas salen de la caché.
+          <Vacio titulo="¿Qué tipo de negocio quieres encontrar?">
+            Escribe la zona y el tipo de negocio arriba, o prueba un ejemplo:
+            <div className="ejemplos">
+              {['guarderías', 'clínicas dentales', 'talleres mecánicos', 'peluquerías', 'restaurantes'].map((nicho) => (
+                <button key={nicho} type="button" className="pequeno" onClick={() => ejecutar(nicho, s.zona.trim() || 'Cuenca, Ecuador')}>
+                  {nicho} en {s.zona.trim() || 'Cuenca'}
+                </button>
+              ))}
+            </div>
+            <div className="proceso" style={{ marginTop: 24, textAlign: 'left' }}>
+              {[
+                ['1', 'Busca', 'Ves teléfono, si tiene web y una nota de oportunidad.'],
+                ['2', 'Guarda', 'Toca «+ Guardar» en los que te interesen.'],
+                ['3', 'Abre su ficha', 'Toca el nombre: la app te guía paso a paso.'],
+              ].map(([n, t, d]) => (
+                <div key={n} className="paso"><span className="num">{n}</span><strong>{t}</strong><small className="tenue">{d}</small></div>
+              ))}
+            </div>
+            <small className="muy-tenue" style={{ display: 'block', marginTop: 12 }}>
+              Cada página de 20 resultados gasta una llamada a Google Places; repetir una búsqueda no gasta.
+            </small>
           </Vacio>
         </div>
       )}
@@ -293,7 +318,7 @@ export function Buscar() {
             <button
               onClick={async () => {
                 await guardarVarios(s.seleccion);
-                setAviso(`${s.seleccion.length} negocio(s) guardados en Mis leads.`);
+                avisar(`${s.seleccion.length} negocio(s) guardados en Mis leads`, { enlace: { a: '/leads', texto: 'Ver' } });
                 s.set({ seleccion: [] });
               }}
             >

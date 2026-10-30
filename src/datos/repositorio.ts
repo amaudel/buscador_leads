@@ -27,6 +27,7 @@ export interface Repositorio {
   guardarAnalisis(a: Analisis): Promise<void>;
 
   obtenerBorradores(id: string): Promise<Borradores | undefined>;
+  listarBorradores(): Promise<Borradores[]>;
   guardarBorradores(b: Borradores): Promise<void>;
 
   obtenerBusqueda(clave: string): Promise<CacheBusqueda | undefined>;

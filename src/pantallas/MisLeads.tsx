@@ -9,23 +9,26 @@ import { etiquetaWeb } from '../logica/clasificarWeb';
 import { descargarCsv } from '../logica/csv';
 import { actualizarLead } from '../logica/leads';
 import { puntuar } from '../logica/puntuacion';
+import { hoyIso, siguientePaso, type Siguiente } from '../logica/pasos';
 import { fechaCorta, normalizar, telefonoEnlace } from '../logica/texto';
 
 interface Fila {
   lead: Lead;
   n: Negocio;
   a?: Analisis;
+  sig: Siguiente;
 }
 
 export function MisLeads() {
   const { datos, cargando } = useDatos(async () => {
     const leads = await repo.listarLeads();
-    const [negocios, analisis] = await Promise.all([repo.listarNegocios(leads.map((l) => l.negocioId)), repo.listarAnalisis()]);
+    const [negocios, analisis, borradores] = await Promise.all([repo.listarNegocios(leads.map((l) => l.negocioId)), repo.listarAnalisis(), repo.listarBorradores()]);
+    const mb = new Map(borradores.map((b) => [b.negocioId, b]));
     const mn = new Map(negocios.map((n) => [n.id, n]));
     const ma = new Map(analisis.map((a) => [a.negocioId, a]));
     return leads
       .filter((l) => mn.has(l.negocioId))
-      .map((lead) => ({ lead, n: mn.get(lead.negocioId)!, a: ma.get(lead.negocioId) }));
+      .map((lead) => ({ lead, n: mn.get(lead.negocioId)!, a: ma.get(lead.negocioId), sig: siguientePaso(lead, ma.get(lead.negocioId), mb.get(lead.negocioId)) }));
   }, []);
 
   const [vista, setVista] = useState<'tabla' | 'tablero'>('tabla');
@@ -35,6 +38,7 @@ export function MisLeads() {
   const [nicho, setNicho] = useState('');
   const [zona, setZona] = useState('');
   const [texto, setTexto] = useState('');
+  const [paraHoy, setParaHoy] = useState(false);
 
   const todas = datos ?? [];
   const nichos = useMemo(() => [...new Set(todas.map((f) => f.n.nicho))].sort(), [todas]);
@@ -44,9 +48,10 @@ export function MisLeads() {
     const q = normalizar(texto);
     return todas
       .filter((f) => (!estado || f.lead.estado === estado) && (!nicho || f.n.nicho === nicho) && (!zona || f.n.zona === zona))
+      .filter((f) => !paraHoy || Boolean(f.lead.proximaAccion && f.lead.proximaAccion <= hoyIso()))
       .filter((f) => !q || normalizar(`${f.n.nombre} ${f.n.direccion ?? ''} ${f.n.dedicacion ?? ''} ${f.lead.notas} ${f.n.telNacional ?? ''}`).includes(q))
       .sort((x, y) => y.lead.actualizado.localeCompare(x.lead.actualizado));
-  }, [todas, estado, nicho, zona, texto]);
+  }, [todas, estado, nicho, zona, texto, paraHoy]);
 
   const exportar = () =>
     descargarCsv(
@@ -109,6 +114,7 @@ export function MisLeads() {
 
       <div className="panel panel-cuerpo fila" style={{ gap: 10 }}>
         <input type="search" placeholder="Buscar por nombre, dirección, notas…" value={texto} onChange={(e) => setTexto(e.target.value)} style={{ flex: '1 1 220px' }} aria-label="Buscar" />
+        <label className="check"><input type="checkbox" checked={paraHoy} onChange={(e) => setParaHoy(e.target.checked)} /> Solo los de hoy</label>
         <select value={estado} onChange={(e) => setEstado(e.target.value)} aria-label="Filtrar por estado">
           <option value="">Todos los estados</option>
           {ESTADOS.map((e) => <option key={e.id} value={e.id}>{e.etiqueta}</option>)}
@@ -148,11 +154,11 @@ function TablaLeads({ filas }: { filas: Fila[] }) {
       <table className="tabla">
         <thead>
           <tr>
-            <th>Negocio</th><th>Nicho · Zona</th><th>Teléfono</th><th>Web</th><th>Oport.</th><th>Estado</th><th>Próxima acción</th><th>Notas</th><th></th>
+            <th>Negocio</th><th>Siguiente paso</th><th>Teléfono</th><th>Web</th><th>Oport.</th><th>Estado</th><th>Próxima acción</th><th>Notas</th><th></th>
           </tr>
         </thead>
         <tbody>
-          {filas.map(({ n, lead, a }) => (
+          {filas.map(({ n, lead, a, sig }) => (
             <tr key={n.id}>
               <td>
                 <div className="celda-negocio">
@@ -163,7 +169,7 @@ function TablaLeads({ filas }: { filas: Fila[] }) {
                   </div>
                 </div>
               </td>
-              <td className="tenue">{n.nicho}<br />{n.zona}</td>
+              <td><Link to={`/negocio/${n.id}?paso=${sig.paso}`} className="chip-siguiente">{sig.corto}</Link><div className="sub">{n.nicho} · {n.zona}</div></td>
               <td>{telefonoEnlace(n) ? <a href={telefonoEnlace(n)!} style={{ whiteSpace: 'nowrap' }}>{n.telNacional ?? n.telInternacional}</a> : '—'}</td>
               <td><EtiquetaWeb n={n} /></td>
               <td><Oportunidad p={puntuar(n, a)} /></td>
@@ -237,6 +243,9 @@ function Tarjeta({ f }: { f: Fila }) {
       </div>
       <div className="tenue">{f.n.dedicacion ?? f.n.nicho}</div>
       {f.lead.proximaAccion && <div style={{ marginTop: 4 }}>Próxima acción: <strong>{fechaCorta(f.lead.proximaAccion)}</strong></div>}
+      <div style={{ marginTop: 6 }} onPointerDown={(e) => e.stopPropagation()}>
+        <Link to={`/negocio/${f.n.id}?paso=${f.sig.paso}`} className="chip-siguiente">{f.sig.corto}</Link>
+      </div>
       <div className="solo-movil" style={{ marginTop: 6 }} onPointerDown={(e) => e.stopPropagation()}>
         <SelectorEstado valor={f.lead.estado} alCambiar={(estado) => actualizarLead(f.n.id, { estado })} />
       </div>

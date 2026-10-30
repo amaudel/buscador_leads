@@ -73,6 +73,9 @@ export class RepositorioIndexedDB implements Repositorio {
   async obtenerBorradores(id: string) {
     return (await this.db).get('borradores', id);
   }
+  async listarBorradores() {
+    return (await this.db).getAll('borradores');
+  }
   async guardarBorradores(b: Borradores) {
     await (await this.db).put('borradores', b);
     cambios.avisar();

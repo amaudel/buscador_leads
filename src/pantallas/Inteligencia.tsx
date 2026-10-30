@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useClaveTreg } from '../estado/treg';
 import { treg, mensajeError, type PersonaTreg } from '../api/cliente';
 import { repo } from '../datos';
 import { useDatos } from '../estado/useDatos';
@@ -30,7 +31,10 @@ export function Inteligencia() {
   const [soloConWeb, setSoloConWeb] = useState(false);
   const [seleccionId, setSeleccionId] = useState<string | null>(null);
   const [estadoTreg, setEstadoTreg] = useState<{ habilitado: boolean; topePorLlamadaUsd: number } | null>(null);
-  const [clave, setClave] = useState(''); // deliberadamente solo memoria React
+  const { clave, setClave } = useClaveTreg(); // solo memoria (no localStorage)
+  const [ultimo, setUltimo] = useState<'personas' | 'correo' | null>(null);
+  const seccionRef = useRef<HTMLElement>(null);
+  const [params] = useSearchParams();
   const [domain, setDomain] = useState('');
   const [cargo, setCargo] = useState('owner');
   const [nombre, setNombre] = useState('');
@@ -55,6 +59,18 @@ export function Inteligencia() {
   const seleccion = todas.find((f) => f.n.id === seleccionId);
   const tope = estadoTreg?.topePorLlamadaUsd ?? 0.15;
 
+  // Llegada desde la ficha: /inteligencia?negocio=<id>
+  useEffect(() => {
+    const id = params.get('negocio');
+    if (!id || !datos) return;
+    const f = datos.find((x) => x.n.id === id);
+    if (f) {
+      elegir(f);
+      setTimeout(() => seccionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, datos]);
+
   const elegir = (f: Fila) => {
     setSeleccionId(f.n.id);
     setDomain(dominioPropio(f.n));
@@ -66,7 +82,7 @@ export function Inteligencia() {
   };
 
   const buscarPersonas = async () => {
-    setCargandoTreg('personas'); setError(''); setResultado(''); setPersonas([]);
+    setCargandoTreg('personas'); setUltimo('personas'); setError(''); setResultado(''); setPersonas([]);
     try {
       const r = await treg.personas(clave, domain, cargo);
       setPersonas(r.personas);
@@ -77,7 +93,7 @@ export function Inteligencia() {
 
   const obtenerCorreo = async () => {
     if (!seleccion) return;
-    setCargandoTreg('correo'); setError(''); setResultado('');
+    setCargandoTreg('correo'); setUltimo('correo'); setError(''); setResultado('');
     try {
       const r = await treg.correo(clave, domain, nombre, cargo);
       await actualizarLead(seleccion.n.id, { contacto: r.contacto });
@@ -89,8 +105,8 @@ export function Inteligencia() {
   return <div className="pila">
     <div className="cabecera">
       <div>
-        <h1>Inteligencia comercial B2B</h1>
-        <p>Priorice leads guardados por producto. El puntaje indica coincidencia heurística, no probabilidad de compra.</p>
+        <h1>Inteligencia B2B</h1>
+        <p>Elige qué quieres vender y ordena tus leads por los que más encajan. Luego busca el correo de quien decide.</p>
       </div>
       <Link to="/buscar" className="boton">Encontrar más negocios</Link>
     </div>
@@ -151,7 +167,7 @@ export function Inteligencia() {
               <td>{f.l.contacto?.email ? <><span>{f.l.contacto.email}</span><small style={{ display: 'block' }}>Verificación: {f.l.contacto.verificacion}</small></> : 'Pendiente'}</td>
               <td><div className="fila">
                 {conWebPropia(f.n) ? (
-                  <button className="pequeno" onClick={() => { elegir(f); setVerDetalle(null); }}>Prospectar</button>
+                  <button className="pequeno" onClick={() => { elegir(f); setVerDetalle(null); setTimeout(() => seccionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }}>Prospectar</button>
                 ) : (
                   <button className="pequeno" disabled title="Treg necesita la web propia de la empresa para buscar contactos">Sin dominio</button>
                 )}
@@ -175,62 +191,85 @@ export function Inteligencia() {
       {!cargando && todas.length > 0 && ordenadas.length === 0 && <div className="panel-cuerpo">No hay leads del sector elegido. Pulse «Ver todos» para revisar las demás empresas.</div>}
     </section>
 
-    <section className="panel" style={{ scrollMarginTop: 80 }}>
-      <div className="panel-cab"><h2>Enriquecimiento de contactos con Treg</h2><small>Consultas individuales, nunca campañas automáticas</small></div>
+    <section className="panel" ref={seccionRef} style={{ scrollMarginTop: 80 }}>
+      <div className="panel-cab">
+        <h2>Buscar el correo de quien decide</h2>
+        <small>Con Treg (de pago, centavos por consulta) · una empresa a la vez</small>
+      </div>
       <div className="panel-cuerpo pila">
-        {!seleccion ? <p className="tenue">Pulse «Prospectar» en una empresa de la tabla para comenzar.</p> : <>
-          <div><strong>{seleccion.n.nombre}</strong> · {seleccion.n.dedicacion ?? seleccion.n.nicho}</div>
-          {!estadoTreg?.habilitado && <div className="aviso-caja">Treg está desactivado en el servidor. Configure los secretos necesarios y Cloudflare Access antes de usar consultas de pago.</div>}
-          <div className="rejilla-2">
-            <label className="campo">
-              Dominio propio de la empresa
-              <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="empresa.com.ec" />
-              <small>Confirmar que pertenece a esta empresa; no utilizar facebook.com o directorios.</small>
-            </label>
-            <label className="campo">
-              Clave administrativa temporal
-              <input type="password" value={clave} onChange={(e) => setClave(e.target.value)} autoComplete="off" placeholder="Acceso autorizado" />
-              <small>No se guarda en el navegador. Requiere además Cloudflare Access.</small>
-            </label>
+        {!seleccion ? (
+          <p className="tenue" style={{ margin: 0 }}>Toca «Prospectar» en una empresa de la tabla (solo las que tienen web propia).</p>
+        ) : <>
+          <div className="fila entre">
+            <div><strong style={{ fontSize: 15 }}>{seleccion.n.nombre}</strong> <span className="tenue">· {seleccion.n.dedicacion ?? seleccion.n.nicho}</span></div>
+            <Link to={`/negocio/${encodeURIComponent(seleccion.n.id)}?paso=dueno`} className="pequeno">Ver ficha</Link>
           </div>
-          <div className="rejilla-2">
-            <label className="campo">Cargo del decisor
-              <select value={cargo} onChange={(e) => setCargo(e.target.value)}>
-                {CARGOS.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </label>
-            <div className="campo"><span>1. Localizar decisores</span>
-              <button type="button" disabled={!estadoTreg?.habilitado || !clave || !domain || !!cargandoTreg} onClick={buscarPersonas}>{cargandoTreg === 'personas' ? 'Buscando…' : 'Buscar perfiles (máximo 5)'}</button>
-              <small>Tope de {dinero(tope)} por solicitud. Incluso sin resultados puede haber cargo.</small>
+          {!estadoTreg?.habilitado && <div className="aviso-caja">Treg está apagado en el servidor (faltan los secretos TREG_TOKEN, TREG_ACCESS_KEY y TREG_ENABLED=true en Cloudflare). Mientras tanto puedes usar el SRI, que es gratis.</div>}
+
+          <div className="borrador" style={{ padding: 14 }}>
+            <div className="fila" style={{ marginBottom: 10 }}><span className="pestanas-pasos" style={{ border: 0, margin: 0 }}><span className="n actual">1</span></span><strong>Empresa y contraseña</strong></div>
+            <div className="rejilla-2">
+              <label className="campo">
+                Web de la empresa (dominio)
+                <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="empresa.com.ec" />
+                <small style={{ fontWeight: 400 }}>Se llena solo. Debe ser su web propia, no Facebook.</small>
+              </label>
+              <label className="campo">
+                Tu contraseña de Treg
+                <input type="password" value={clave} onChange={(e) => setClave(e.target.value)} autoComplete="off" placeholder="La que guardaste como TREG_ACCESS_KEY" />
+                <small style={{ fontWeight: 400 }}>{clave ? '✓ Se recuerda mientras no recargues la página.' : 'La que inventaste y guardaste en Cloudflare. No se guarda en el navegador.'}</small>
+              </label>
             </div>
           </div>
-          {personas.length > 0 && <div className="panel panel-cuerpo pila">
-            <strong>Personas encontradas (sin correo verificado)</strong>
-            {personas.map((p, i) => <div className="fila entre" key={`${p.nombre}-${i}`}>
-              <span>{p.nombre} · {p.cargo || 'Cargo no informado'} {p.linkedin ? <a href={p.linkedin} rel="noreferrer" target="_blank">Perfil público</a> : null}</span>
-              <button className="pequeno" onClick={() => { setNombre(p.nombre); if (CARGOS.includes(p.cargo)) setCargo(p.cargo); }}>Seleccionar</button>
-            </div>)}
-          </div>}
-          <div className="panel panel-cuerpo">
-            <DuenoSri n={seleccion.n} alUsar={(nombreSri) => { setNombre(nombreSri); setCargo('owner'); }} />
-          </div>
-          <div className="rejilla-2">
-            <label className="campo">
-              Nombre y apellido del responsable
-              <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre Apellido" />
+
+          <div className="borrador" style={{ padding: 14 }}>
+            <div className="fila" style={{ marginBottom: 10 }}><span className="pestanas-pasos" style={{ border: 0, margin: 0 }}><span className={`n ${nombre ? 'hecho' : 'actual'}`}>{nombre ? '✓' : '2'}</span></span><strong>¿A quién le buscamos el correo?</strong></div>
+            <div className="rejilla-2" style={{ alignItems: 'start' }}>
+              <div className="pila" style={{ gap: 6 }}>
+                <span className="etiqueta verde sin-punto" style={{ alignSelf: 'flex-start' }}>Opción A · Gratis</span>
+                <DuenoSri n={seleccion.n} alUsar={(nombreSri) => { setNombre(nombreSri); setCargo('owner'); }} />
+              </div>
+              <div className="pila" style={{ gap: 6 }}>
+                <span className="etiqueta ambar sin-punto" style={{ alignSelf: 'flex-start' }}>Opción B · De pago (hasta {dinero(tope)})</span>
+                <label className="campo">Cargo que buscas
+                  <select value={cargo} onChange={(e) => setCargo(e.target.value)}>
+                    {CARGOS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+                <button type="button" disabled={!estadoTreg?.habilitado || !clave || !domain || !!cargandoTreg} onClick={buscarPersonas}>
+                  {cargandoTreg === 'personas' ? <><span className="girando" /> Buscando…</> : 'Buscar personas en Treg'}
+                </button>
+                <small className="tenue">Puede cobrar aunque no encuentre a nadie. Funciona mejor con empresas medianas.</small>
+                {ultimo === 'personas' && resultado && <div className="info-caja">{resultado}</div>}
+                {ultimo === 'personas' && error && <div className="aviso-caja">{error}</div>}
+                {personas.map((p, i) => (
+                  <div className="fila entre" key={`${p.nombre}-${i}`} style={{ fontSize: 13 }}>
+                    <span>{p.nombre} · {p.cargo || 'Cargo no informado'} {p.linkedin ? <a href={p.linkedin} rel="noreferrer" target="_blank">LinkedIn</a> : null}</span>
+                    <button className="pequeno" onClick={() => { setNombre(p.nombre); if (CARGOS.includes(p.cargo)) setCargo(p.cargo); }}>Elegir</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <label className="campo" style={{ marginTop: 12 }}>
+              Nombre y apellido de la persona
+              <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Se llena al elegir en A o B, o escríbelo si ya lo sabes" />
             </label>
-            <div className="campo"><span>2. Encontrar y verificar correo empresarial</span>
+          </div>
+
+          <div className="borrador" style={{ padding: 14 }}>
+            <div className="fila" style={{ marginBottom: 10 }}><span className="pestanas-pasos" style={{ border: 0, margin: 0 }}><span className="n actual">3</span></span><strong>Buscar y verificar su correo</strong></div>
+            <div className="fila">
               <button className="primario" type="button" disabled={!estadoTreg?.habilitado || !clave || !domain || nombre.trim().split(/\s+/).length < 2 || !!cargandoTreg}
-                onClick={obtenerCorreo}>{cargandoTreg === 'correo' ? 'Verificando…' : 'Buscar correo y verificar'}</button>
-              <small>Un correo encontrado no significa que esté verificado: observe el veredicto.</small>
+                onClick={obtenerCorreo}>{cargandoTreg === 'correo' ? <><span className="girando" /> Verificando…</> : 'Buscar correo y verificar'}</button>
+              <small className="tenue">Desde $0,0005. Solo confía en los que digan «valid».</small>
             </div>
+            {ultimo === 'correo' && resultado && <div className="info-caja" style={{ marginTop: 10 }}>{resultado}</div>}
+            {ultimo === 'correo' && error && <div className="aviso-caja" style={{ marginTop: 10 }}>{error}</div>}
+            {seleccion.l.contacto && <div className="info-caja" style={{ marginTop: 10 }}>
+              Contacto guardado: <strong>{seleccion.l.contacto.nombre}</strong> · {seleccion.l.contacto.email ?? 'sin correo'} · {seleccion.l.contacto.verificacion === 'valid' ? 'verificado ✓' : 'sin verificar'} · fuente: {seleccion.l.contacto.proveedor}
+            </div>}
           </div>
-          {seleccion.l.contacto && <div className="info-caja">
-            Último contacto guardado: <strong>{seleccion.l.contacto.nombre}</strong> · {seleccion.l.contacto.email ?? 'No encontrado'} · estado: {seleccion.l.contacto.verificacion} · {seleccion.l.contacto.proveedor}
-          </div>}
-          {resultado && <div className="info-caja">{resultado}</div>}
-          {error && <div className="aviso-caja">{error}</div>}
-          <small>No se envían mensajes ni se hacen búsquedas en lote. El costo máximo aplica a cada llamada y no sustituye un presupuesto total. Los datos personales deben tratarse con base legal y según los términos del proveedor.</small>
+          <small className="muy-tenue">No se envían mensajes ni se hacen búsquedas en lote. Los datos personales deben tratarse con base legal y según los términos del proveedor.</small>
         </>}
       </div>
     </section>

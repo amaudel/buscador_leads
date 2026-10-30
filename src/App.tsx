@@ -7,6 +7,7 @@ import { FichaImprimir } from './pantallas/FichaImprimir';
 import { MisLeads } from './pantallas/MisLeads';
 import { RadarNichos } from './pantallas/RadarNichos';
 import { Inteligencia } from './pantallas/Inteligencia';
+import { Inicio } from './pantallas/Inicio';
 
 export function App() {
   return (
@@ -14,14 +15,14 @@ export function App() {
       <Routes>
         <Route path="/negocio/:id/imprimir" element={<FichaImprimir />} />
         <Route element={<Layout />}>
-          <Route path="/" element={<Navigate to="/buscar" replace />} />
+          <Route path="/" element={<Inicio />} />
           <Route path="/buscar" element={<Buscar />} />
           <Route path="/negocio/:id" element={<Ficha />} />
           <Route path="/radar" element={<RadarNichos />} />
           <Route path="/leads" element={<MisLeads />} />
           <Route path="/inteligencia" element={<Inteligencia />} />
           <Route path="/ajustes" element={<Ajustes />} />
-          <Route path="*" element={<Navigate to="/buscar" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

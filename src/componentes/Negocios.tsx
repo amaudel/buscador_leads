@@ -44,9 +44,21 @@ interface Props {
   seleccion: string[];
   alternar: (id: string) => void;
   alternarTodos: () => void;
+  alGuardar?: (id: string) => void;
 }
 
-export function TablaNegocios({ filas, seleccion, alternar, alternarTodos }: Props) {
+/** Estado del lead o botón para guardarlo. */
+function EstadoOGuardar({ lead, id, alGuardar }: { lead?: Lead; id: string; alGuardar?: (id: string) => void }) {
+  if (lead) return <EstadoBadge estado={lead.estado} />;
+  if (!alGuardar) return <EstadoBadge estado={undefined} />;
+  return (
+    <button type="button" className="pequeno" onClick={() => alGuardar(id)} title="Guardar en Mis leads">
+      + Guardar
+    </button>
+  );
+}
+
+export function TablaNegocios({ filas, seleccion, alternar, alternarTodos, alGuardar }: Props) {
   const todos = filas.length > 0 && filas.every((f) => seleccion.includes(f.n.id));
   return (
     <div className="tabla-contenedor">
@@ -94,7 +106,7 @@ export function TablaNegocios({ filas, seleccion, alternar, alternarTodos }: Pro
                 ) : '—'}
               </td>
               <td><Oportunidad p={puntuar(n, analisis)} /></td>
-              <td><EstadoBadge estado={lead?.estado} /></td>
+              <td><EstadoOGuardar lead={lead} id={n.id} alGuardar={alGuardar} /></td>
             </tr>
           ))}
         </tbody>
@@ -103,7 +115,7 @@ export function TablaNegocios({ filas, seleccion, alternar, alternarTodos }: Pro
   );
 }
 
-export function TarjetasNegocios({ filas, seleccion, alternar }: Props) {
+export function TarjetasNegocios({ filas, seleccion, alternar, alGuardar }: Props) {
   return (
     <div className="tarjetas">
       {filas.map(({ n, lead, analisis }) => (
@@ -129,7 +141,7 @@ export function TarjetasNegocios({ filas, seleccion, alternar }: Props) {
             <EtiquetaWeb n={n} />
           </div>
           <div className="fila entre">
-            <EstadoBadge estado={lead?.estado} />
+            <EstadoOGuardar lead={lead} id={n.id} alGuardar={alGuardar} />
             <span className="fila" style={{ gap: 4 }}>
               {telefonoEnlace(n) && (
                 <a className="boton pequeno" href={telefonoEnlace(n)!}><Icono nombre="tel" tam={14} /> Llamar</a>

@@ -7,6 +7,7 @@ import { useAjustes, usoDelMes, type Tema } from '../datos/ajustes';
 import { useDatos } from '../estado/useDatos';
 import { normalizar } from '../logica/texto';
 import { ColaPanel } from './ColaPanel';
+import { Toasts } from './Toast';
 import { Avatar, Icono } from './ui';
 
 const VISTAS = [
@@ -46,15 +47,20 @@ export function Layout() {
             <small>Prospección local</small>
           </span>
         </div>
+        <NavLink to="/" end><Icono nombre="inicio" tam={17} />Inicio</NavLink>
+
+        <div className="seccion solo-escritorio">1 · Encontrar</div>
         <NavLink to="/buscar"><Icono nombre="buscar" tam={17} />Buscar</NavLink>
-        <NavLink to="/radar"><Icono nombre="radar" tam={17} />Radar de nichos</NavLink>
-        <NavLink to="/inteligencia"><Icono nombre="radar" tam={17} />Inteligencia B2B</NavLink>
+        <NavLink to="/radar" className={({ isActive }) => `solo-escritorio ${isActive ? 'active' : ''}`}><Icono nombre="radar" tam={17} />Radar de nichos</NavLink>
+
+        <div className="seccion solo-escritorio">2 · Trabajar</div>
         <NavLink to="/leads" className={({ isActive }) => (isActive && !vistaActiva ? 'active' : '')}>
           <Icono nombre="leads" tam={17} />Mis leads
           {leads ? <span className="contador">{leads.length}</span> : null}
         </NavLink>
+        <NavLink to="/inteligencia"><Icono nombre="persona" tam={17} /><span className="solo-escritorio">Inteligencia B2B</span><span className="solo-movil">Contactos</span></NavLink>
 
-        <div className="seccion solo-escritorio">Vistas</div>
+        <div className="seccion solo-escritorio">Mis leads por estado</div>
         {VISTAS.map((v) => (
           <Link key={v.estado} to={`/leads?estado=${v.estado}`} className={`solo-escritorio ${vistaActiva === v.estado ? 'active' : ''}`}>
             <Icono nombre="punto" tam={17} />
@@ -109,6 +115,7 @@ export function Layout() {
         </main>
       </div>
       <ColaPanel />
+      <Toasts />
     </div>
   );
 }

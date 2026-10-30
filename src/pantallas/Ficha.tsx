@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { SERVICIOS, TONOS, type Analisis, type Borradores, type EstadoCheck, type Lead, type Negocio } from '../../shared/tipos';
 import { api, mensajeError } from '../api/cliente';
 import {
-  Anillo, BotonCopiar, Cargando, ErrorCaja, EtiquetaWeb, Icono, SelectorEstado, TablaDesglose, Vacio,
+  Anillo, BotonCopiar, Cargando, ErrorCaja, EstadoBadge, EtiquetaWeb, Icono, SelectorEstado, TablaDesglose, Vacio,
 } from '../componentes/ui';
+import { Ayuda } from '../componentes/Ayuda';
+import { avisar } from '../componentes/Toast';
 import { DuenoSri } from '../componentes/DuenoSri';
 import { repo } from '../datos';
 import { useAjustes } from '../datos/ajustes';
@@ -13,6 +15,7 @@ import { useDatos } from '../estado/useDatos';
 import { etiquetaWeb } from '../logica/clasificarWeb';
 import { actualizarLead, asegurarLead } from '../logica/leads';
 import { colorOportunidad, puntuar } from '../logica/puntuacion';
+import { PASOS, enDias, progreso, siguientePaso, type PasoId } from '../logica/pasos';
 import { fechaCorta, telefonoEnlace, whatsappEnlace } from '../logica/texto';
 
 export const AVISO_BORRADORES =
@@ -56,93 +59,230 @@ export function Ficha() {
 
 function FichaContenido({ n, lead, analisis, borradores }: { n: Negocio; lead?: Lead; analisis?: Analisis; borradores?: Borradores }) {
   const navegar = useNavigate();
-  const p = puntuar(n, analisis);
+  const [params, setParams] = useSearchParams();
+  const analizar = useCola((c) => c.analizar);
+  const itemCola = useCola((c) => c.items[n.id]);
   const tel = telefonoEnlace(n);
+  const prog = progreso(lead, analisis, borradores);
+  const sig = siguientePaso(lead, analisis, borradores);
+  const pasoUrl = params.get('paso') as PasoId | null;
+  const paso: PasoId = PASOS.some((x) => x.id === pasoUrl) ? pasoUrl! : sig.paso;
+  const irA = (p: PasoId) => setParams({ paso: p }, { replace: true });
+  const hecho: Record<PasoId, boolean> = {
+    datos: prog.guardado,
+    analisis: prog.analizado,
+    dueno: prog.dueno,
+    mensajes: prog.mensajes,
+    seguimiento: prog.contactado,
+  };
+  const analizando = itemCola && ['en_cola', 'pagespeed', 'gemini'].includes(itemCola.fase);
+
+  const ejecutar = async () => {
+    switch (sig.accion) {
+      case 'guardar':
+        await asegurarLead(n.id);
+        avisar('Guardado en Mis leads', { enlace: { a: '/leads', texto: 'Ver' } });
+        break;
+      case 'analizar':
+        analizar([n]);
+        irA('analisis');
+        break;
+      case 'contactar':
+        await actualizarLead(n.id, { estado: 'contactado', proximaAccion: lead?.proximaAccion ?? enDias(3) });
+        avisar('Marcado como contactado. Próxima acción en 3 días.');
+        irA('seguimiento');
+        break;
+      default:
+        irA(sig.paso);
+    }
+  };
+
   return (
-    <div className="pila">
+    <div className="pila" style={{ gap: 0 }}>
       <div className="cabecera">
         <div style={{ minWidth: 0 }}>
           <button className="fantasma pequeno" onClick={() => navegar(-1)} style={{ marginLeft: -8 }}>
             <Icono nombre="volver" tam={14} /> Volver
           </button>
           <h1>{n.nombre}</h1>
-          <p>
-            {n.dedicacion ?? n.nicho} · {n.zona}
-            {n.estadoNegocio && n.estadoNegocio !== 'OPERATIONAL' && <span className="etiqueta rojo" style={{ marginLeft: 8 }}>Cerrado</span>}
+          <p className="fila" style={{ gap: 8 }}>
+            <span>{n.dedicacion ?? n.nicho} · {n.zona}</span>
+            {lead ? <EstadoBadge estado={lead.estado} /> : <span className="etiqueta">No guardado</span>}
+            {n.estadoNegocio && n.estadoNegocio !== 'OPERATIONAL' && <span className="etiqueta rojo">Cerrado</span>}
           </p>
         </div>
         <div className="fila">
           {tel && <a className="boton primario" href={tel}><Icono nombre="tel" tam={15} /> Llamar</a>}
-          {n.web && <a className="boton" href={n.web} target="_blank" rel="noopener noreferrer"><Icono nombre="web" tam={15} /> Abrir web</a>}
-          {n.mapsUrl && <a className="boton" href={n.mapsUrl} target="_blank" rel="noopener noreferrer"><Icono nombre="mapa" tam={15} /> Google Maps</a>}
-          <a className="boton" href={`/negocio/${n.id}/imprimir`} target="_blank" rel="noopener"><Icono nombre="imprimir" tam={15} /> Exportar ficha</a>
+          {n.web && <a className="boton" href={n.web} target="_blank" rel="noopener noreferrer"><Icono nombre="web" tam={15} /> Web</a>}
+          {n.mapsUrl && <a className="boton" href={n.mapsUrl} target="_blank" rel="noopener noreferrer"><Icono nombre="mapa" tam={15} /> Maps</a>}
+          <a className="boton" href={`/negocio/${n.id}/imprimir`} target="_blank" rel="noopener"><Icono nombre="imprimir" tam={15} /> PDF</a>
         </div>
       </div>
 
-      <div className="rejilla-ficha">
-        <div className="pila">
-          <PanelAnalisis n={n} analisis={analisis} />
-          <PanelContacto n={n} analisis={analisis} borradores={borradores} />
+      <div className="pestanas-pasos" role="tablist" aria-label="Pasos">
+        {PASOS.map((x) => (
+          <button key={x.id} role="tab" aria-selected={paso === x.id} onClick={() => irA(x.id)} title={x.ayuda}>
+            <span className={`n ${hecho[x.id] ? 'hecho' : sig.paso === x.id ? 'actual' : ''}`}>{hecho[x.id] ? '✓' : x.n}</span>
+            {x.titulo}
+          </button>
+        ))}
+      </div>
+
+      {sig.accion !== 'ninguna' && (
+        <div className="siguiente-paso">
+          <div>
+            <span className="etq">Siguiente paso</span>
+            <strong>{sig.texto}</strong>
+          </div>
+          {!(paso === sig.paso && ['dueno', 'mensajes', 'seguimiento'].includes(sig.accion)) && (
+            <button className="primario" onClick={ejecutar} disabled={sig.accion === 'analizar' && analizando}>
+              {sig.accion === 'analizar' && analizando ? <><span className="girando" /> Analizando…</> : sig.boton}
+            </button>
+          )}
+          {paso === sig.paso && ['dueno', 'mensajes', 'seguimiento'].includes(sig.accion) && <span className="tenue">Hazlo aquí abajo ↓</span>}
         </div>
-        <div className="pila">
-          <section className="panel contacto">
-            <div className="panel-cab"><h2>Datos de contacto</h2></div>
-            <div className="panel-cuerpo">
-              <dl>
-                <dt>Teléfono</dt>
-                <dd>{tel ? <a href={tel}>{n.telNacional ?? n.telInternacional}</a> : '—'}</dd>
-                <dt>Internacional</dt>
-                <dd>{n.telInternacional ?? '—'}</dd>
-                <dt>Web</dt>
-                <dd><EtiquetaWeb n={n} recortar={false} /></dd>
-                <dt>Dirección</dt>
-                <dd>{n.direccion ?? '—'}</dd>
-                <dt>Valoración</dt>
-                <dd>{n.valoracion != null ? `★ ${n.valoracion.toFixed(1)} (${n.numResenas} reseñas)` : 'Sin valoraciones'}</dd>
-                <dt>Categoría</dt>
-                <dd>{n.dedicacion ?? '—'}</dd>
-                {analisis?.gemini?.correos.length ? (<><dt>Correos</dt><dd>{analisis.gemini.correos.map((c) => <div key={c}><a href={`mailto:${c}`}>{c}</a></div>)}</dd></>) : null}
-                {analisis?.gemini?.redes.length ? (<><dt>Redes</dt><dd>{analisis.gemini.redes.map((r) => <div key={r.url}><a href={r.url} target="_blank" rel="noopener noreferrer">{r.red}</a></div>)}</dd></>) : null}
-              </dl>
-              {lead?.contacto?.proveedor === 'SRI' && (
-                <div className="info-caja" style={{ marginTop: 10 }}>Dueño según SRI: <strong>{lead.contacto.nombre}</strong></div>
-              )}
-              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--borde)' }}>
-                <DuenoSri
-                  n={n}
-                  textoUsar="Guardar como dueño"
-                  alUsar={async (nombre, c) => {
-                    const l = await asegurarLead(n.id);
-                    const linea = `Dueño según SRI: ${nombre} (RUC ${c.ruc})`;
-                    await actualizarLead(n.id, {
-                      notas: l.notas.includes(linea) ? l.notas : [l.notas, linea].filter(Boolean).join('\n'),
-                      // No pisa un contacto ya verificado con Treg.
-                      ...(l.contacto && l.contacto.proveedor !== 'SRI'
-                        ? {}
-                        : { contacto: { nombre, cargo: 'Dueño (SRI)', email: null, verificacion: 'unknown' as const, proveedor: 'SRI', fecha: new Date().toISOString(), callId: c.ruc, costoUsd: 0 } }),
-                    });
-                  }}
-                />
+      )}
+      {sig.accion === 'ninguna' && <div className="siguiente-paso"><strong>{sig.texto}</strong></div>}
+
+      {paso === 'datos' && <PasoDatos n={n} analisis={analisis} />}
+      {paso === 'analisis' && <PanelAnalisis n={n} analisis={analisis} />}
+      {paso === 'dueno' && <PasoDueno n={n} lead={lead} analisis={analisis} />}
+      {paso === 'mensajes' && <PanelContacto n={n} analisis={analisis} borradores={borradores} />}
+      {paso === 'seguimiento' && <PanelSeguimiento n={n} lead={lead} />}
+
+      <div className="fila entre" style={{ marginTop: 16 }}>
+        {PASOS.findIndex((x) => x.id === paso) > 0 ? (
+          <button className="fantasma" onClick={() => irA(PASOS[PASOS.findIndex((x) => x.id === paso) - 1].id)}>← Paso anterior</button>
+        ) : <span />}
+        {PASOS.findIndex((x) => x.id === paso) < PASOS.length - 1 && (
+          <button onClick={() => irA(PASOS[PASOS.findIndex((x) => x.id === paso) + 1].id)}>
+            Paso {PASOS.findIndex((x) => x.id === paso) + 2}: {PASOS[PASOS.findIndex((x) => x.id === paso) + 1].titulo} →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PasoDatos({ n, analisis }: { n: Negocio; analisis?: Analisis }) {
+  const p = puntuar(n, analisis);
+  const tel = telefonoEnlace(n);
+  return (
+    <div className="rejilla-2">
+      <section className="panel contacto">
+        <div className="panel-cab"><h2>Datos de contacto</h2><small>De Google Maps</small></div>
+        <div className="panel-cuerpo">
+          <dl>
+            <dt>Teléfono</dt>
+            <dd>{tel ? <a href={tel}>{n.telNacional ?? n.telInternacional}</a> : '—'}</dd>
+            <dt>Internacional</dt>
+            <dd>{n.telInternacional ?? '—'}</dd>
+            <dt>Web <Ayuda termino="webPropia" /></dt>
+            <dd><EtiquetaWeb n={n} recortar={false} /></dd>
+            <dt>Dirección</dt>
+            <dd>{n.direccion ?? '—'}</dd>
+            <dt>Valoración</dt>
+            <dd>{n.valoracion != null ? `★ ${n.valoracion.toFixed(1)} (${n.numResenas} reseñas)` : 'Sin valoraciones'}</dd>
+            <dt>Categoría</dt>
+            <dd>{n.dedicacion ?? '—'}</dd>
+            {analisis?.gemini?.correos.length ? (<><dt>Correos</dt><dd>{analisis.gemini.correos.map((c) => <div key={c}><a href={`mailto:${c}`}>{c}</a></div>)}</dd></>) : null}
+            {analisis?.gemini?.redes.length ? (<><dt>Redes</dt><dd>{analisis.gemini.redes.map((r) => <div key={r.url}><a href={r.url} target="_blank" rel="noopener noreferrer">{r.red}</a></div>)}</dd></>) : null}
+          </dl>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-cab">
+          <h2>Oportunidad <Ayuda termino="oportunidad" /></h2>
+          <span className={`nota ${colorOportunidad(p.total)} ${p.provisional ? 'provisional' : ''}`} style={{ fontSize: 15, height: 30, minWidth: 44 }}>
+            {p.total}
+          </span>
+        </div>
+        <div className="panel-cuerpo pila" style={{ gap: 8 }}>
+          {p.etiqueta === 'Sin web' && <span className="etiqueta rojo" style={{ alignSelf: 'flex-start' }}>Oportunidad: {etiquetaWeb(n.tipoWeb)}</span>}
+          {p.provisional && <small>Provisional: calculada solo con los datos de Google Maps. Analiza la web para afinarla.</small>}
+          <TablaDesglose p={p} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PasoDueno({ n, lead, analisis }: { n: Negocio; lead?: Lead; analisis?: Analisis }) {
+  const conWeb = n.tipoWeb === 'propia' && Boolean(n.web);
+  const c = lead?.contacto;
+  return (
+    <div className="rejilla-2">
+      <section className="panel">
+        <div className="panel-cab"><h2>¿Quién es el dueño? <Ayuda termino="sri" /></h2><small>Gratis</small></div>
+        <div className="panel-cuerpo pila" style={{ gap: 12 }}>
+          <p className="tenue" style={{ margin: 0 }}>
+            Busca el negocio en el registro del SRI. Si está a nombre de una persona, ese es el dueño.
+          </p>
+          <DuenoSri
+            n={n}
+            textoUsar="Guardar como dueño"
+            alUsar={async (nombre, cand) => {
+              const l = await asegurarLead(n.id);
+              const linea = `Dueño según SRI: ${nombre} (RUC ${cand.ruc})`;
+              await actualizarLead(n.id, {
+                notas: l.notas.includes(linea) ? l.notas : [l.notas, linea].filter(Boolean).join('\n'),
+                // No pisa un contacto ya verificado con Treg.
+                ...(l.contacto && l.contacto.proveedor !== 'SRI'
+                  ? {}
+                  : { contacto: { nombre, cargo: 'Dueño (SRI)', email: null, verificacion: 'unknown' as const, proveedor: 'SRI', fecha: new Date().toISOString(), callId: cand.ruc, costoUsd: 0 } }),
+              });
+              avisar(`Guardado: ${nombre} es el dueño`);
+            }}
+          />
+        </div>
+      </section>
+
+      <div className="pila">
+        <section className="panel">
+          <div className="panel-cab"><h2>Contacto guardado</h2></div>
+          <div className="panel-cuerpo">
+            {c ? (
+              <div className="pila" style={{ gap: 4 }}>
+                <strong style={{ fontSize: 15 }}>{c.nombre}</strong>
+                <span className="tenue">{c.cargo} · fuente: {c.proveedor}</span>
+                {c.email ? (
+                  <span>
+                    <a href={`mailto:${c.email}`}>{c.email}</a>{' '}
+                    <span className={`etiqueta ${c.verificacion === 'valid' ? 'verde' : 'ambar'}`}>{c.verificacion === 'valid' ? 'Verificado' : 'Sin verificar'}</span>
+                  </span>
+                ) : <span className="muy-tenue">Sin correo todavía</span>}
               </div>
-            </div>
-          </section>
+            ) : (
+              <p className="tenue" style={{ margin: 0 }}>Aún no sabes quién decide. Búscalo en el SRI (a la izquierda).</p>
+            )}
+            {analisis?.gemini?.correos.length ? (
+              <p style={{ margin: '12px 0 0' }} className="tenue">
+                Correos que aparecen en su web: {analisis.gemini.correos.map((x) => <a key={x} href={`mailto:${x}`} style={{ marginRight: 8 }}>{x}</a>)}
+              </p>
+            ) : null}
+          </div>
+        </section>
 
-          <section className="panel">
-            <div className="panel-cab">
-              <h2>Oportunidad</h2>
-              <span className={`nota ${colorOportunidad(p.total)} ${p.provisional ? 'provisional' : ''}`} style={{ fontSize: 15, height: 30, minWidth: 44 }}>
-                {p.total}
-              </span>
-            </div>
-            <div className="panel-cuerpo pila" style={{ gap: 8 }}>
-              {p.etiqueta === 'Sin web' && <span className="etiqueta rojo" style={{ alignSelf: 'flex-start' }}>Oportunidad: {etiquetaWeb(n.tipoWeb)}</span>}
-              {p.provisional && <small>Provisional: calculada solo con los datos de Google Maps. Analiza la web para afinarla.</small>}
-              <TablaDesglose p={p} />
-            </div>
-          </section>
-
-          <PanelSeguimiento n={n} lead={lead} />
-        </div>
+        <section className="panel">
+          <div className="panel-cab"><h2>¿Necesitas su correo directo? <Ayuda termino="treg" /></h2><small>De pago</small></div>
+          <div className="panel-cuerpo pila" style={{ gap: 10 }}>
+            {conWeb ? (
+              <>
+                <p className="tenue" style={{ margin: 0 }}>
+                  Treg busca el correo de trabajo de una persona en <strong>{n.web?.replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '')}</strong>. Cuesta centavos por consulta.
+                </p>
+                <Link className="boton" to={`/inteligencia?negocio=${encodeURIComponent(n.id)}`} style={{ alignSelf: 'flex-start' }}>
+                  <Icono nombre="persona" tam={15} /> Buscar correo con Treg
+                </Link>
+              </>
+            ) : (
+              <p className="tenue" style={{ margin: 0 }}>
+                Treg necesita la web propia de la empresa y este negocio no la tiene. Llámalo o escríbele por WhatsApp con el nombre del dueño.
+              </p>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -375,9 +515,41 @@ function PanelSeguimiento({ n, lead }: { n: Negocio; lead?: Lead }) {
     <section className="panel">
       <div className="panel-cab">
         <h2>Seguimiento</h2>
-        {!lead && <button className="pequeno" onClick={() => asegurarLead(n.id)}>Guardar en mis leads</button>}
+        {!lead && <button className="pequeno" onClick={async () => { await asegurarLead(n.id); avisar('Guardado en Mis leads'); }}>Guardar en mis leads</button>}
       </div>
       <div className="panel-cuerpo pila" style={{ gap: 10 }}>
+        <div className="pila" style={{ gap: 6 }}>
+          <small className="tenue">Registra lo que hiciste (pone el estado y una próxima acción):</small>
+          <div className="fila">
+            {[
+              { texto: '📞 Lo llamé', nota: 'Llamada', estado: 'contactado' as const, dias: 3 },
+              { texto: '💬 Le escribí por WhatsApp', nota: 'WhatsApp enviado', estado: 'contactado' as const, dias: 3 },
+              { texto: '✉️ Le mandé correo', nota: 'Correo enviado', estado: 'contactado' as const, dias: 4 },
+              { texto: '↩️ Me respondió', nota: 'Respondió', estado: 'respondio' as const, dias: 1 },
+              { texto: '📅 Agendamos reunión', nota: 'Reunión agendada', estado: 'reunion' as const, dias: 0 },
+            ].map((x) => (
+              <button
+                key={x.texto}
+                type="button"
+                className="pequeno"
+                onClick={async () => {
+                  const l = await asegurarLead(n.id);
+                  const fecha = new Date().toLocaleDateString('es-419', { day: '2-digit', month: 'short' });
+                  const linea = `${fecha}: ${x.nota}`;
+                  await actualizarLead(n.id, {
+                    estado: x.estado,
+                    proximaAccion: x.dias ? enDias(x.dias) : l.proximaAccion,
+                    notas: [l.notas, linea].filter(Boolean).join('\n'),
+                  });
+                  setGuardado(true);
+                  avisar(x.dias ? `Anotado. Próxima acción: en ${x.dias} día(s).` : 'Anotado. Pon la fecha de la reunión en «Próxima acción».');
+                }}
+              >
+                {x.texto}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="rejilla-2" style={{ gap: 10 }}>
           <label className="campo">
             Estado
