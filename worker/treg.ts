@@ -38,6 +38,14 @@ function dominioValido(v: unknown): string {
   return dominio;
 }
 
+async function cuerpo(req: Request): Promise<Record<string, unknown>> {
+  try {
+    return registro(await req.json());
+  } catch {
+    throw new ErrorApi('Treg', 400, 'El cuerpo de la petición no es JSON válido.');
+  }
+}
+
 function registro(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {};
 }
@@ -127,7 +135,7 @@ async function consultarTreg(token: string, endpoint: 'treg.people.search' | 'tr
 
 export async function tregPersonas(req: Request, env: Env) {
   const token = exigirAcceso(req, env);
-  const b = registro(await req.json());
+  const b = await cuerpo(req);
   const domain = dominioValido(b.domain);
   const cargo = str(b.cargo) as Cargo;
   if (!CARGOS.includes(cargo)) throw new ErrorApi('Treg', 400, 'Seleccione un cargo permitido.');
@@ -137,7 +145,7 @@ export async function tregPersonas(req: Request, env: Env) {
 
 export async function tregCorreo(req: Request, env: Env) {
   const token = exigirAcceso(req, env);
-  const b = registro(await req.json());
+  const b = await cuerpo(req);
   const domain = dominioValido(b.domain);
   const fullName = str(b.fullName);
   if (fullName.length < 5 || fullName.length > 120 || !fullName.includes(' ')) throw new ErrorApi('Treg', 400, 'Introduzca nombre y apellido del contacto.');

@@ -51,3 +51,10 @@ describe('Integración Treg fail-closed', () => {
     expect(p[0].cargo).toBe('CEO');
   });
 });
+
+describe('Treg: petición mal formada', () => {
+  it('responde 400 si el cuerpo no es JSON', async () => {
+    const malo = new Request('https://radar.test/api/treg/correo', { method: 'POST', headers: { 'x-leads-admin-key': 'clave-admin' }, body: '{no' });
+    await expect(tregCorreo(malo, env())).rejects.toThrow(/JSON válido/);
+  });
+});

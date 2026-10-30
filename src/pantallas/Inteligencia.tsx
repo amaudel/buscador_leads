@@ -113,7 +113,7 @@ export function Inteligencia() {
         <small>Con correo verificado: {funnel.correosVerificados}</small>
       </section>
       <section className="panel panel-cuerpo">
-        <small>Contactados / Respondieron / Reunión / Cliente</small>
+        <small>Contactados / Reunión / Cliente</small>
         <h1>{funnel.contactados} / {funnel.reuniones} / {funnel.clientes}</h1>
         <small>Clientes sobre leads guardados: {funnel.conversionSobreLeads}%</small>
       </section>
