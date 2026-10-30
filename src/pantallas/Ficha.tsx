@@ -5,6 +5,7 @@ import { api, mensajeError } from '../api/cliente';
 import {
   Anillo, BotonCopiar, Cargando, ErrorCaja, EtiquetaWeb, Icono, SelectorEstado, TablaDesglose, Vacio,
 } from '../componentes/ui';
+import { DuenoSri } from '../componentes/DuenoSri';
 import { repo } from '../datos';
 import { useAjustes } from '../datos/ajustes';
 import { useCola } from '../estado/analisis';
@@ -103,6 +104,26 @@ function FichaContenido({ n, lead, analisis, borradores }: { n: Negocio; lead?: 
                 {analisis?.gemini?.correos.length ? (<><dt>Correos</dt><dd>{analisis.gemini.correos.map((c) => <div key={c}><a href={`mailto:${c}`}>{c}</a></div>)}</dd></>) : null}
                 {analisis?.gemini?.redes.length ? (<><dt>Redes</dt><dd>{analisis.gemini.redes.map((r) => <div key={r.url}><a href={r.url} target="_blank" rel="noopener noreferrer">{r.red}</a></div>)}</dd></>) : null}
               </dl>
+              {lead?.contacto?.proveedor === 'SRI' && (
+                <div className="info-caja" style={{ marginTop: 10 }}>Dueño según SRI: <strong>{lead.contacto.nombre}</strong></div>
+              )}
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--borde)' }}>
+                <DuenoSri
+                  n={n}
+                  textoUsar="Guardar como dueño"
+                  alUsar={async (nombre, c) => {
+                    const l = await asegurarLead(n.id);
+                    const linea = `Dueño según SRI: ${nombre} (RUC ${c.ruc})`;
+                    await actualizarLead(n.id, {
+                      notas: l.notas.includes(linea) ? l.notas : [l.notas, linea].filter(Boolean).join('\n'),
+                      // No pisa un contacto ya verificado con Treg.
+                      ...(l.contacto && l.contacto.proveedor !== 'SRI'
+                        ? {}
+                        : { contacto: { nombre, cargo: 'Dueño (SRI)', email: null, verificacion: 'unknown' as const, proveedor: 'SRI', fecha: new Date().toISOString(), callId: c.ruc, costoUsd: 0 } }),
+                    });
+                  }}
+                />
+              </div>
             </div>
           </section>
 

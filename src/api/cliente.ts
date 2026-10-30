@@ -70,6 +70,9 @@ export const api = {
     tono: string;
   }) => llamar<Omit<Borradores, 'negocioId' | 'tono' | 'fecha'> & { modelo: string }>('POST', '/api/gemini/borradores', b),
 
+  sri: (nombre: string, canton: string | null) =>
+    llamar<{ candidatos: import('../../shared/sri').CandidatoSri[]; terminos: string[]; fuente: string }>('POST', '/api/sri/buscar', { nombre, canton }),
+
   nichos: (zona: string, metricas: MetricaNicho[], perfil: PerfilVendedor) =>
     llamar<RankingNichos & { modelo: string }>('POST', '/api/gemini/nichos', { zona, metricas, perfil }),
 };

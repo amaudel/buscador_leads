@@ -5,6 +5,7 @@ import { repo } from '../datos';
 import { useDatos } from '../estado/useDatos';
 import { actualizarLead } from '../logica/leads';
 import { evaluarICP, indicadoresFunnel, PERFILES, type PerfilICP } from '../logica/icp';
+import { DuenoSri } from '../componentes/DuenoSri';
 import { EtiquetaWeb, SelectorEstado } from '../componentes/ui';
 import type { Analisis, Lead, Negocio } from '../../shared/tipos';
 
@@ -210,6 +211,9 @@ export function Inteligencia() {
               <button className="pequeno" onClick={() => { setNombre(p.nombre); if (CARGOS.includes(p.cargo)) setCargo(p.cargo); }}>Seleccionar</button>
             </div>)}
           </div>}
+          <div className="panel panel-cuerpo">
+            <DuenoSri n={seleccion.n} alUsar={(nombreSri) => { setNombre(nombreSri); setCargo('owner'); }} />
+          </div>
           <div className="rejilla-2">
             <label className="campo">
               Nombre y apellido del responsable

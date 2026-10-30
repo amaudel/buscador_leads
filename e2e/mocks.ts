@@ -69,6 +69,18 @@ export async function simularApi(page: Page) {
       },
     });
   });
+  await page.route('**/api/sri/buscar', (r) =>
+    r.fulfill({
+      json: {
+        terminos: ['perez'],
+        fuente: 'SRI',
+        candidatos: [
+          { ruc: '0102623626001', nombreComercial: 'TALLER PEREZ', razonSocial: 'PEREZ MONTAÑO JUAN CARLOS', tipo: 'PERSONA NATURAL', canton: 'CUENCA', parroquia: 'SUCRE', actividad: 'MANTENIMIENTO Y REPARACIÓN DE VEHÍCULOS', duenoProbable: 'PEREZ MONTAÑO JUAN CARLOS' },
+          { ruc: '0190000000001', nombreComercial: 'PEREZ AUTOS', razonSocial: 'PEREZ AUTOS CIA. LTDA.', tipo: 'SOCIEDAD', canton: 'CUENCA', parroquia: '', actividad: 'VENTA DE VEHÍCULOS', duenoProbable: null },
+        ],
+      },
+    }),
+  );
   const base = { modelo: 'gemini-2.5-flash', avisos: [] };
   await page.route('**/api/gemini/analizar-web', async (r) => {
     await new Promise((x) => setTimeout(x, 800));

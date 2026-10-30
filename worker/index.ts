@@ -6,6 +6,7 @@ import { ErrorApi, comprobar } from './errores';
 import { generar, generarConUrl, parsearJson, probarClave, resolverModelo } from './gemini';
 import * as P from './prompts';
 import { tregEstado, tregPersonas, tregCorreo } from './treg';
+import { buscarSri } from './sri';
 
 export interface Env {
   ASSETS: Fetcher;
@@ -14,6 +15,7 @@ export interface Env {
   TREG_TOKEN?: string;
   TREG_ENABLED?: string;
   TREG_ACCESS_KEY?: string;
+  SRI_DB?: D1Database;
 }
 
 const json = (datos: unknown, estado = 200) =>
@@ -215,6 +217,7 @@ const RUTAS: Record<string, (req: Request, env: Env) => Promise<unknown>> = {
   'GET /api/treg/estado': async (req, env) => tregEstado(req, env),
   'POST /api/treg/personas': tregPersonas,
   'POST /api/treg/correo': tregCorreo,
+  'POST /api/sri/buscar': buscarSri,
   'POST /api/probar': probar,
   'POST /api/places/search': buscarPlaces,
   'POST /api/pagespeed': pagespeed,

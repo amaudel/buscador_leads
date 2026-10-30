@@ -81,6 +81,13 @@ test('flujo completo: buscar → guardar → analizar → borradores → leads �
   await page.getByPlaceholder(/Con quién hablaste/).fill('Llamar el lunes, habla con Don Jorge');
   await page.getByLabel('Estado').selectOption('contactado');
   await expect(page.getByText('Guardado', { exact: true })).toBeVisible();
+  // Dueño según el SRI
+  await page.getByRole('button', { name: 'Buscar dueño en el SRI' }).click();
+  await expect(page.getByText('PEREZ MONTAÑO JUAN CARLOS')).toBeVisible();
+  await expect(page.getByText(/Es una compañía/)).toBeVisible();
+  await page.getByRole('button', { name: 'Guardar como dueño' }).click();
+  await expect(page.getByText('Dueño según SRI:', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('Juan Carlos Perez Montaño').first()).toBeVisible();
   await page.screenshot({ path: `${capturas}/4-ficha.png`, fullPage: true });
 
   // Versión imprimible
