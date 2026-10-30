@@ -139,7 +139,7 @@ export function Inteligencia() {
           </tbody>
         </table>
       </div>
-      {verDetalle && (() => {
+      {verDetalle ? (() => {
         const f = ordenadas.find((x) => x.n.id === verDetalle);
         return f ? <div className="panel-cuerpo" style={{ borderTop: '1px solid var(--borde)' }}>
           <h2>Por qué {f.n.nombre}: {f.icp.puntuacion}/100</h2>
