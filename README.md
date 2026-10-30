@@ -94,3 +94,37 @@ Se parte de una base de 30 puntos y se suman o restan según estos criterios:
 Un negocio cerrado vale 0. Antes de analizar la web la nota es **provisional**: solo usa los datos de Maps. El desglose se muestra siempre.
 
 > La app nunca envía mensajes. Los borradores son para un contacto personal; no envíes mensajes comerciales masivos sin consentimiento.
+
+
+## Inteligencia comercial B2B — fases 3 y 4
+
+La vista **Inteligencia B2B** (ruta `/inteligencia`) amplía los leads que ya guardaste:
+
+- Fase 4: selecciona un perfil de cliente ideal (web, NixgoFood, NidoCerca, WhatsApp o citas), puntúa negocios con criterios transparentes y consulta qué falta comprobar. La puntuación es **heurística**; no significa probabilidad real de compra. Las métricas de embudo se obtienen del estado de los leads guardados.
+- Fase 3: busca hasta cinco posibles decisores de una empresa mediante `treg.people.search` y, de forma **individual y manual**, busca y verifica un correo empresarial con `treg.people.email.find`. Solo se conserva el contacto elegido con su estado de verificación, proveedor, fecha, costo y `callId` del proveedor. No se envían comunicaciones.
+- **No** existe contacto masivo, scraping de WhatsApp ni automatización de envíos. Los contactos sin verificación `valid` deben revisarse antes de cualquier comunicación.
+
+### Activación segura del piloto de Treg
+
+La conexión **está desactivada por defecto**. Obtén un token de organización de Treg en [treg.to](https://treg.to) y habilita Cloudflare Access para proteger el Worker **incluyendo el dominio público y sus rutas /api/**. Configura estos secretos del Worker:
+
+```bash
+npx wrangler secret put TREG_TOKEN
+npx wrangler secret put TREG_ACCESS_KEY
+npx wrangler secret put TREG_ENABLED
+```
+
+- En `TREG_TOKEN`, pega un token de equipo/organización de Treg (no el token de Google o Gemini).
+- En `TREG_ACCESS_KEY`, pega un secreto aleatorio largo de uso interno; lo introducirás en la pantalla **Inteligencia B2B** cuando realices consultas. **No** se almacena en `localStorage`; desaparece al recargar la página.
+- En `TREG_ENABLED`, introduce exactamente `true`.
+- **Antes de activar**, proteja también la app mediante Cloudflare Access y configure topes diarios en Treg. El secreto de acceso al enriquecimiento no es un sustituto de autenticación de usuarios ni de un tope global de gastos.
+
+Cada petición Treg tiene una reserva máxima de **$0.15** mediante `X-Treg-Route-Max-Cost`. Esto **no** limita el gasto acumulado y algunos intentos sin resultados pueden generar costo. La interfaz ejecuta una consulta por cada pulsación del usuario, sin reintentos automáticos, e informa del costo real por encabezado `X-Treg-Cost-Micro`, del proveedor y del identificador de auditoría. Si Treg devuelve una solicitud asíncrona pendiente, **no se reintenta automáticamente**.
+
+**Limitaciones del piloto:**
+- La cobertura de contactos empresariales en Ecuador debe probarse con un grupo reducido; los endpoints pueden rechazar filtros que el proveedor no soporte.
+- Los datos retornados por Treg están sujetos a la licencia y condiciones del proveedor de origen, a la legislación local y a obligaciones de información, legitimación y minimización de datos.
+- La vista actual funciona con los negocios y leads previamente guardados en IndexedDB. No modifica la fuente de Google Places ni resuelve los temas de licencias de persistencia/exportación identificados en la auditoría anterior.
+- No incorpora todavía D1 ni autenticación multiusuario. Para comercializar la aplicación, esas capacidades, junto a controles acumulativos de gasto y políticas de privacidad, siguen siendo requisitos independientes.
+
+Documentación de integración Treg: https://treg.to/integrate.md
